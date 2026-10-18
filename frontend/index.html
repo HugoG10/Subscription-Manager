@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Subscription Manager</title>
+  <meta name="description" content="Track subscription costs, renewals, trials, and the plans you no longer use.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%239d3f12'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia' font-size='18' fill='white'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,620&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#view">Skip to content</a>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">S</span>
+        <div>
+          <p class="brand-name">Subscription Manager</p>
+          <p class="brand-sub">Renewals, spend, and use</p>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Sections">
+        <button class="nav-btn" type="button" data-action="navigate" data-view="overview">Overview</button>
+        <button class="nav-btn" type="button" data-action="navigate" data-view="subscriptions">Subscriptions</button>
+        <button class="nav-btn" type="button" data-action="navigate" data-view="spending">Spending</button>
+        <button class="nav-btn" type="button" data-action="navigate" data-view="reminders">
+          Reminders
+          <span class="badge" id="reminder-badge" hidden>0</span>
+        </button>
+        <button class="nav-btn" type="button" data-action="navigate" data-view="usage">
+          Check-ins
+          <span class="badge" id="usage-badge" hidden>0</span>
+        </button>
+      </nav>
+      <p class="rail-foot">Saved in MongoDB by the Python server.</p>
+    </aside>
+
+    <div class="workspace">
+      <div class="canvas">
+        <header class="top">
+          <div>
+            <p class="kicker" id="page-kicker">Dashboard</p>
+            <h1 id="page-title">All your subscriptions</h1>
+            <p class="intro" id="page-intro">What you pay, what renews soon, and what you might not need.</p>
+          </div>
+          <button class="btn btn-primary" type="button" data-action="add">Add subscription</button>
+        </header>
+        <noscript>
+          <p class="noscript">Turn on JavaScript to use the dashboard.</p>
+        </noscript>
+        <main id="view" tabindex="-1"></main>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="sub-dialog" aria-labelledby="dialog-title">
+    <form class="dialog-card" id="sub-form" novalidate>
+      <div class="dialog-head">
+        <h2 id="dialog-title">Add subscription</h2>
+        <button class="icon-btn" type="button" data-action="close-dialog" aria-label="Close">×</button>
+      </div>
+      <div class="form-error" id="form-error" hidden></div>
+      <div class="form-grid">
+        <label class="wide">
+          Name
+          <input id="name" name="name" type="text" maxlength="60" placeholder="Netflix" autocomplete="off">
+        </label>
+        <label>
+          Price
+          <span class="money-field">
+            <span aria-hidden="true">$</span>
+            <input id="cost" name="cost" type="number" min="0" max="999999.99" step="0.01" inputmode="decimal" placeholder="0.00">
+          </span>
+        </label>
+        <label>
+          Billing cycle
+          <select id="cycle" name="cycle"></select>
+        </label>
+        <label>
+          Category
+          <select id="category" name="category"></select>
+        </label>
+        <label>
+          Status
+          <select id="status" name="status"></select>
+        </label>
+        <label>
+          <span id="renewal-label">Next renewal</span>
+          <input id="renewal-date" name="renewalDate" type="date">
+        </label>
+        <label>
+          Remind me
+          <select id="reminder-days" name="reminderDays"></select>
+        </label>
+        <label>
+          How often you use it
+          <select id="usage" name="usage"></select>
+        </label>
+        <label>
+          Last used
+          <input id="last-used" name="lastUsed" type="date">
+        </label>
+        <label class="wide">
+          Notes
+          <textarea id="notes" name="notes" maxlength="240" rows="3" placeholder="A class login, a family plan, a reason you kept it"></textarea>
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-action="close-dialog">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" type="submit">Add subscription</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="dialog-card confirm-card">
+      <h2 id="confirm-title">Remove this subscription?</h2>
+      <p id="confirm-copy"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" id="confirm-cancel" type="button" data-action="close-confirm">Cancel</button>
+        <button class="btn btn-danger" id="confirm-accept" type="button" data-action="accept-confirm">Remove</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="js/app.js"></script>
+</body>
+</html>
