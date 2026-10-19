@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: subscription-manager
+    runtime: python
+    plan: free
+    region: oregon
+    branch: master
+    buildCommand: pip install -r requirements.txt
+    startCommand: 'gunicorn --workers 1 --bind 0.0.0.0:$PORT "main:create_app()"'
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.8
+      - key: MONGODB_DB
+        value: subscription_manager
+      - key: MONGODB_URI
+        sync: false

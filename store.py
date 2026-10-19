@@ -21,11 +21,9 @@ DEFAULT_DATABASE = "subscription_manager"
 
 
 class DatabaseUnavailable(Exception):
-    def __init__(self, uri: str):
-        self.uri = uri
+    def __init__(self):
         super().__init__(
-            f"Could not connect to MongoDB at {uri}. "
-            "Start it with: brew services start mongodb-community"
+            "Could not connect to MongoDB. Check MONGODB_URI and that Atlas allows connections from this host."
         )
 
 
@@ -78,7 +76,7 @@ class SubscriptionStore:
         try:
             self.client.admin.command("ping")
         except ServerSelectionTimeoutError as error:
-            raise DatabaseUnavailable(self.uri) from error
+            raise DatabaseUnavailable() from error
         self.subscriptions.create_index([("renewalDate", 1), ("name", 1)])
         claimed = self.meta.find_one_and_update(
             {"_id": "initialized"},
