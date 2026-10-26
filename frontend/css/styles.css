@@ -130,8 +130,7 @@ p {
   line-height: 1.15;
 }
 
-.brand-sub,
-.rail-foot {
+.brand-sub {
   color: #b7aea3;
 }
 
@@ -182,13 +181,6 @@ p {
   color: white;
   font-size: 0.75rem;
   font-weight: 600;
-}
-
-.rail-foot {
-  margin-top: auto;
-  padding: 0 8px;
-  font-size: 0.78rem;
-  line-height: 1.45;
 }
 
 .workspace {
@@ -1032,10 +1024,6 @@ dialog::backdrop {
     height: auto;
     gap: 12px;
     padding: 14px 14px 12px;
-  }
-
-  .rail-foot {
-    display: none;
   }
 
   .nav {
