@@ -38,15 +38,34 @@ def load_env(path: Path | None = None) -> None:
             os.environ[key] = value
 
 
-def create_app(mongo_uri: str | None = None, database: str | None = None) -> Flask:
+def create_app(
+    mongo_uri: str | None = None,
+    database: str | None = None,
+    *,
+    connect: bool = True,
+) -> Flask:
     load_env()
     app = Flask(__name__)
     store = SubscriptionStore(
         mongo_uri or os.environ.get("MONGODB_URI", DEFAULT_URI),
         database or os.environ.get("MONGODB_DB", DEFAULT_DATABASE),
     )
-    store.initialize()
     app.store = store
+    if connect:
+        store.initialize()
+    else:
+        # Vercel imports this module at build time, before a request exists.
+        # Connect on the first request so a missing database does not fail the build.
+        ready = False
+
+        @app.before_request
+        def connect_database():
+            nonlocal ready
+            if ready:
+                return None
+            store.initialize()
+            ready = True
+            return None
 
     @app.get("/")
     def index():
@@ -120,6 +139,10 @@ def _valid_id(subscription_id: str) -> bool:
     if not subscription_id or len(subscription_id) > ID_MAX_LENGTH:
         return False
     return all(character.isalnum() or character in "-_" for character in subscription_id)
+
+
+# Vercel loads this Flask instance. Local `python main.py` builds its own.
+app = create_app(connect=False)
 
 
 def main() -> None:
