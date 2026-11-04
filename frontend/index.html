@@ -3,39 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Subscription Manager</title>
+  <title>Wallet Worth</title>
   <meta name="description" content="Track subscription costs, renewals, trials, and the plans you no longer use.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%239d3f12'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Georgia' font-size='18' fill='white'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23de3341'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Inter,sans-serif' font-size='16' font-weight='600' fill='white'%3EW%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,620&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css?v=6">
 </head>
-<body>
+<body class="is-signed-out">
   <a class="skip" href="#view">Skip to content</a>
+  <div class="gate" id="gate">
+    <form class="gate-card" id="auth-form">
+      <span class="mark" aria-hidden="true">W</span>
+      <h1>Wallet Worth</h1>
+      <p class="intro" id="auth-copy">Sign in to see the subscriptions found from your bank.</p>
+      <label>
+        Email
+        <input id="auth-email" name="email" type="email" autocomplete="username" maxlength="254" required>
+      </label>
+      <label>
+        Password
+        <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required>
+      </label>
+      <p class="form-error" id="auth-error" hidden></p>
+      <button class="btn btn-primary" id="auth-submit" type="submit">Sign in</button>
+      <button class="btn btn-ghost" id="auth-switch" type="button">Create an account</button>
+      <p class="fine">Connecting a bank opens Plaid. This app never sees your bank password.</p>
+    </form>
+  </div>
   <div class="app">
     <aside class="rail">
       <div class="brand">
-        <span class="mark" aria-hidden="true">S</span>
-        <div>
-          <p class="brand-name">Subscription Manager</p>
-          <p class="brand-sub">Renewals, spend, and use</p>
-        </div>
+        <span class="mark" aria-hidden="true">W</span>
+        <p class="brand-name">Wallet Worth</p>
       </div>
       <nav class="nav" aria-label="Sections">
+        <p class="nav-label">Home</p>
         <button class="nav-btn" type="button" data-action="navigate" data-view="overview">Overview</button>
         <button class="nav-btn" type="button" data-action="navigate" data-view="subscriptions">Subscriptions</button>
+        <button class="nav-btn" type="button" data-action="navigate" data-view="activity">Activity</button>
+        <p class="nav-label">Money</p>
         <button class="nav-btn" type="button" data-action="navigate" data-view="spending">Spending</button>
         <button class="nav-btn" type="button" data-action="navigate" data-view="reminders">
           Reminders
           <span class="badge" id="reminder-badge" hidden>0</span>
         </button>
         <button class="nav-btn" type="button" data-action="navigate" data-view="usage">
-          Check-ins
+          Usage
           <span class="badge" id="usage-badge" hidden>0</span>
         </button>
       </nav>
-      <p class="rail-foot">Saved in MongoDB by the Python server.</p>
+      <div class="rail-account">
+        <p id="account-email"></p>
+        <button type="button" data-action="sync-bank" id="sync-bank" hidden>Sync bank</button>
+        <button type="button" data-action="logout">Log out</button>
+      </div>
     </aside>
 
     <div class="workspace">
@@ -46,7 +69,10 @@
             <h1 id="page-title">All your subscriptions</h1>
             <p class="intro" id="page-intro">What you pay, what renews soon, and what you might not need.</p>
           </div>
-          <button class="btn btn-primary" type="button" data-action="add">Add subscription</button>
+          <div class="top-actions">
+            <button class="btn btn-primary" type="button" data-action="add">Add<span class="add-long"> subscription</span></button>
+          </div>
+          <input id="statement-file" type="file" accept=".csv,text/csv" hidden>
         </header>
         <noscript>
           <p class="noscript">Turn on JavaScript to use the dashboard.</p>
@@ -127,6 +153,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
