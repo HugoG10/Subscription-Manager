@@ -68,6 +68,7 @@ class Subscription:
     usage: str
     last_used: date | None
     notes: str
+    source: str = "manual"
 
     def to_json(self) -> dict:
         return {
@@ -82,6 +83,7 @@ class Subscription:
             "usage": self.usage,
             "lastUsed": self.last_used.isoformat() if self.last_used else "",
             "notes": self.notes,
+            "source": self.source,
         }
 
 
@@ -145,7 +147,7 @@ def summarize(subscriptions: list[Subscription], today: date | None = None) -> d
     }
 
 
-def sample_subscriptions(today: date | None = None) -> list[Subscription]:
+def sample_subscriptions(today: date | None = None, id_prefix: str = "") -> list[Subscription]:
     today = today or date.today()
     subscriptions = []
     for row in SAMPLE_ROWS:
@@ -165,7 +167,7 @@ def sample_subscriptions(today: date | None = None) -> list[Subscription]:
         last_used = None if last_used_in is None else today + timedelta(days=last_used_in)
         subscriptions.append(
             Subscription(
-                id=subscription_id,
+                id=f"{id_prefix}{subscription_id}",
                 name=name,
                 category=category,
                 cost=Decimal(cost),

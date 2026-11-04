@@ -1,5 +1,5 @@
 /**
- * Subscription Manager frontend.
+ * Wallet Worth frontend.
  *
  * The Python server at main.py stores subscriptions and serves this page.
  * A subscription looks like this:
@@ -13,15 +13,15 @@
  */
 
 const CATEGORIES = [
-  { id: "streaming", label: "Streaming", color: "#c4511a" },
-  { id: "music", label: "Music", color: "#7a3e6d" },
-  { id: "software", label: "Software", color: "#1e4d7b" },
-  { id: "cloud", label: "Cloud", color: "#3d6b8c" },
-  { id: "news", label: "News", color: "#8a5a12" },
-  { id: "fitness", label: "Fitness", color: "#1f6b45" },
-  { id: "gaming", label: "Gaming", color: "#5c4d8a" },
-  { id: "shopping", label: "Shopping", color: "#8e4b2f" },
-  { id: "other", label: "Other", color: "#6d655c" },
+  { id: "streaming", label: "Streaming", color: "#de3341" },
+  { id: "music", label: "Music", color: "#5b3c9c" },
+  { id: "software", label: "Software", color: "#111111" },
+  { id: "cloud", label: "Cloud", color: "#298540" },
+  { id: "news", label: "News", color: "#c12a36" },
+  { id: "fitness", label: "Fitness", color: "#298540" },
+  { id: "gaming", label: "Gaming", color: "#28162d" },
+  { id: "shopping", label: "Shopping", color: "#545454" },
+  { id: "other", label: "Other", color: "#7d7d7d" },
 ];
 
 const CYCLES = [
@@ -60,33 +60,38 @@ const SORTS = [
   { id: "name", label: "Name" },
 ];
 
-const VIEWS = ["overview", "subscriptions", "spending", "reminders", "usage"];
+const VIEWS = ["overview", "subscriptions", "activity", "spending", "reminders", "usage"];
 
 const PAGE = {
   overview: {
-    kicker: "Dashboard",
-    title: "All your subscriptions",
+    kicker: "Home",
+    title: "Overview",
     intro: "What you pay, what renews soon, and what you might not need.",
   },
   subscriptions: {
-    kicker: "Library",
-    title: "Manage subscriptions",
-    intro: "Search, filter, and update every plan in one list.",
+    kicker: "Home",
+    title: "Subscriptions",
+    intro: "Search, filter, and update every plan.",
+  },
+  activity: {
+    kicker: "Home",
+    title: "Activity",
+    intro: "Keep the charges that are subscriptions. Hide everyday spending.",
   },
   spending: {
-    kicker: "Spending",
-    title: "Monthly and yearly cost",
-    intro: "Active plans are totaled here. Trials stay separate until you keep them.",
+    kicker: "Money",
+    title: "Spending",
+    intro: "Active plans are included. Trials stay separate until you keep them.",
   },
   reminders: {
-    kicker: "Reminders",
-    title: "Before the next charge",
-    intro: "Active plans and free trials show up here, using the warning you set on each one.",
+    kicker: "Money",
+    title: "Reminders",
+    intro: "Plans that renew inside the warning you set.",
   },
   usage: {
-    kicker: "Check-in",
-    title: "What you actually use",
-    intro: "Mark how often you open each active plan or trial. Rarely and never become cancel candidates.",
+    kicker: "Money",
+    title: "Usage",
+    intro: "Mark how often you use each plan. Rarely and never are cancel candidates.",
   },
 };
 
@@ -112,9 +117,17 @@ const state = {
   editingId: null,
   confirm: null,
   loadError: "",
+  user: null,
+  bank: { linked: false, institutions: [], sandbox: false },
+  activity: null,
+  activityError: "",
+  activityQuery: "",
+  activityFrom: "",
+  activityTo: "",
 };
 
 let toastTimer = 0;
+let reviewRequest = null;
 
 function uid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -286,17 +299,22 @@ function normalize(sub) {
     usage: USAGE_IDS.includes(sub.usage) ? sub.usage : "monthly",
     lastUsed: parseISODate(sub.lastUsed) ? sub.lastUsed : "",
     notes: String(sub.notes || "").trim().slice(0, 240),
+    source: sub.source === "bank" ? "bank" : "manual",
   };
 }
 
 async function request(method, path, body) {
   const response = await fetch(path, {
     method,
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401 && path !== "/api/login" && path !== "/api/register") {
+    showGate();
+  }
   if (!response.ok) {
     const message = Array.isArray(payload.errors) && payload.errors.length
       ? payload.errors.join(" ")
@@ -388,11 +406,6 @@ function lastUsedPhrase(iso) {
 
 function statusTag(sub) {
   return `<span class="tag tag-${escapeHtml(sub.status)}">${escapeHtml(labelOf(STATUSES, sub.status))}</span>`;
-}
-
-function usageTag(sub) {
-  const idle = sub.usage === "rarely" || sub.usage === "never";
-  return `<span class="tag${idle ? " tag-idle" : ""}">${escapeHtml(labelOf(USAGES, sub.usage))}</span>`;
 }
 
 function optionHtml(options, selected, allLabel) {
@@ -490,6 +503,7 @@ function renderOverview() {
     ${trialNote()}
     ${exclusionNote()}
     ${banner}
+    ${bankPanel()}
     <div class="split">
       <section class="panel">
         <div class="panel-head"><h2>Coming up</h2><span>Next renewals</span></div>
@@ -505,6 +519,36 @@ function renderOverview() {
       ${categories.length ? renderBars(categories) : `<p class="fine">Add an active subscription to see spending by category.</p>`}
     </section>
   `;
+}
+
+function bankPanel() {
+  const names = state.bank.institutions || [];
+  const copy = state.bank.linked
+    ? `Linked to ${names.join(", ") || "your bank"}.`
+    : state.bank.sandbox
+      ? "This server is still using test banks."
+      : "Sign in at your bank through Plaid. Your password never reaches this app.";
+  const sync = state.bank.linked
+    ? `<button class="btn btn-ghost" type="button" data-action="sync-bank">Sync now</button>`
+    : "";
+  const disconnect = state.bank.linked
+    ? `<button class="btn btn-ghost" type="button" data-action="ask-disconnect">Disconnect</button>`
+    : "";
+  const testBank = state.bank.sandbox
+    ? `<button class="btn btn-ghost" type="button" data-action="load-test-bank">Load a test bank</button>`
+    : "";
+  return `<section class="panel block bank-panel">
+    <div class="panel-head"><h2>From your bank</h2></div>
+    <p class="fine">${escapeHtml(copy)}</p>
+    <div class="bank-actions">
+      <button class="btn btn-primary" type="button" data-action="connect-bank">Connect your bank</button>
+      ${testBank}
+      <button class="btn btn-ghost" type="button" data-action="navigate" data-view="activity">Review charges</button>
+      <button class="btn btn-ghost" type="button" data-action="upload-statement">Upload a statement</button>
+      ${sync}
+      ${disconnect}
+    </div>
+  </section>`;
 }
 
 function spendByCategory(subs) {
@@ -532,16 +576,18 @@ function renderSubRow(sub) {
   const cycle = lookup(CYCLES, sub.cycle);
   const quiet = sub.status === "paused" || sub.status === "canceled" ? " is-quiet" : "";
   const equivalent = sub.cycle === "monthly" ? "" : ` · ${money(monthlyEquivalent(sub))}/mo`;
-  const notes = sub.notes ? `<p class="sub-notes">${escapeHtml(sub.notes)}</p>` : "";
+  const automaticNote = /^(Found on|Marked from a charge)/.test(sub.notes || "");
+  const notes = sub.notes && !automaticNote ? `<p class="sub-notes">${escapeHtml(sub.notes)}</p>` : "";
+  const status = sub.status === "active" ? "" : statusTag(sub);
+  const source = sub.source === "bank" ? " · From your bank" : "";
   return `<article class="sub${quiet}">
     <span class="dot" style="background:${categoryOf(sub.category).color}"></span>
     <div class="sub-main">
       <div class="sub-title">
         <h3>${escapeHtml(sub.name)}</h3>
-        ${statusTag(sub)}
-        ${usageTag(sub)}
+        ${status}
       </div>
-      <p class="sub-meta">${escapeHtml(labelOf(CATEGORIES, sub.category))} · ${escapeHtml(cycle.label)}</p>
+      <p class="sub-meta">${escapeHtml(labelOf(CATEGORIES, sub.category))} · ${escapeHtml(cycle.label)} · ${escapeHtml(labelOf(USAGES, sub.usage))}${source}</p>
       ${notes}
     </div>
     <div class="sub-side">
@@ -597,8 +643,8 @@ function renderSubscriptions() {
     </div>
     <div id="list-host">${renderSubList()}</div>
     <div class="quiet-actions">
-      <button type="button" data-action="ask-seed">Restore sample data</button>
-      <button type="button" data-action="download">Download JSON</button>
+      <button type="button" data-action="ask-seed">Load sample plans</button>
+      <button type="button" data-action="download">Export</button>
       <button class="danger" type="button" data-action="ask-clear">Remove all</button>
     </div>
   `;
@@ -714,6 +760,91 @@ function renderReminders() {
   `;
 }
 
+function renderActivity() {
+  if (state.activityError) return emptyBlock("Charges could not be loaded", state.activityError);
+  if (!state.activity) {
+    if (!reviewRequest) reviewRequest = loadReview().finally(() => { reviewRequest = null; });
+    return `<p class="fine">Loading charges…</p>`;
+  }
+  if (!state.activity.length) {
+    return emptyBlock(
+      "No charges yet",
+      "Connect your bank or upload a statement. The charges show up here.",
+    );
+  }
+  return `<section class="panel block">
+    <div class="activity-tools">
+      <label class="search-field">Search
+        <input id="activity-search" type="search" placeholder="Name or date" value="${escapeHtml(state.activityQuery)}" aria-label="Search charges">
+      </label>
+      <label>From
+        <input id="activity-from" type="date" value="${escapeHtml(state.activityFrom)}" aria-label="From date">
+      </label>
+      <label>To
+        <input id="activity-to" type="date" value="${escapeHtml(state.activityTo)}" aria-label="To date">
+      </label>
+    </div>
+    <div id="activity-host">${renderActivityRows()}</div>
+  </section>`;
+}
+
+function chargeMatchesDateQuery(charge, query) {
+  const pretty = formatDisplay(charge.posted).toLowerCase();
+  if (charge.posted.includes(query) || pretty.includes(query)) return true;
+  const [year, month, day] = charge.posted.split("-");
+  const forms = [`${month}/${day}`, `${Number(month)}/${Number(day)}`, `${month}/${day}/${year}`, `${Number(month)}/${Number(day)}/${year}`];
+  return forms.some((form) => form === query);
+}
+
+function chargeInRange(charge) {
+  if (state.activityFrom && charge.posted < state.activityFrom) return false;
+  if (state.activityTo && charge.posted > state.activityTo) return false;
+  return true;
+}
+
+function activityCharges(row, query) {
+  const nameHit = !query || row.name.toLowerCase().includes(query);
+  return row.charges.filter((charge) => {
+    if (!chargeInRange(charge)) return false;
+    if (nameHit) return true;
+    return chargeMatchesDateQuery(charge, query);
+  });
+}
+
+function renderActivityRows() {
+  if (state.activityFrom && state.activityTo && state.activityFrom > state.activityTo) {
+    return `<p class="fine">The start date is after the end date.</p>`;
+  }
+  const query = state.activityQuery.trim().toLowerCase();
+  const ranged = Boolean(state.activityFrom || state.activityTo);
+  const rows = state.activity
+    .map((row) => ({ row, charges: activityCharges(row, query) }))
+    .filter((item) => item.charges.length);
+  if (!rows.length) {
+    const copy = ranged ? "No charges fall in that date range." : "No charges match that search.";
+    return `<p class="fine">${copy}</p>`;
+  }
+  return rows.map(({ row, charges }) => {
+    const visible = ranged || (query && !row.name.toLowerCase().includes(query)) ? charges : charges.slice(0, 6);
+    const pills = visible.map((charge) => `<span class="charge-pill">${escapeHtml(formatDisplay(charge.posted))} · ${money(charge.amount)}</span>`).join("");
+    const label = row.dismissed ? "Hidden" : row.tracked ? "Tracking" : row.likely ? "Looks like a subscription" : "Everyday spending";
+    const keep = row.tracked
+      ? ""
+      : `<button class="btn btn-primary" type="button" data-action="keep-merchant" data-key="${escapeHtml(row.key)}">Track this</button>`;
+    const hide = row.dismissed
+      ? ""
+      : `<button class="btn btn-ghost" type="button" data-action="dismiss-merchant" data-key="${escapeHtml(row.key)}">Not a subscription</button>`;
+    return `<article class="activity-row">
+      <div>
+        <h3>${escapeHtml(row.name)}</h3>
+        <p class="activity-meta">${money(row.amount)} · ${row.count} charge${row.count === 1 ? "" : "s"} · ${escapeHtml(label)}</p>
+        <div class="charge-list">${pills}</div>
+      </div>
+      <div class="activity-actions">${keep}${hide}</div>
+    </article>`;
+  }).join("");
+}
+
 function renderUsageCard(sub) {
   const usedToday = sub.lastUsed && daysUntil(sub.lastUsed) === 0;
   const picks = USAGES.map((usage) => {
@@ -761,6 +892,7 @@ const renderers = {
   spending: renderSpending,
   reminders: renderReminders,
   usage: renderUsage,
+  activity: renderActivity,
 };
 
 function setBadge(id, count) {
@@ -785,12 +917,12 @@ function render(options = {}) {
   document.getElementById("page-intro").textContent = page.intro;
   if (state.loadError) {
     document.getElementById("view").innerHTML = emptyBlock("The server is not running", state.loadError);
-    document.title = "Subscription Manager";
+    document.title = "Wallet Worth";
     window.scrollTo(0, 0);
     return;
   }
   document.getElementById("view").innerHTML = renderers[state.view]();
-  document.title = `${page.title} · Subscription Manager`;
+  document.title = `${page.title} · Wallet Worth`;
   window.scrollTo(0, options.keepScroll ? scrollY : 0);
 }
 
@@ -957,6 +1089,12 @@ async function acceptConfirm() {
       const rows = await request("POST", "/api/subscriptions/sample");
       state.subscriptions = rows.map(normalize);
       toast("Sample subscriptions loaded.");
+    } else if (pending.type === "disconnect") {
+      await request("POST", "/api/bank/disconnect");
+      const session = await request("GET", "/api/session");
+      state.bank = session.bank || { linked: false, institutions: [], sandbox: false };
+      await load();
+      toast("Disconnected. The bank can no longer be read from this app.");
     }
   } catch (error) {
     toast(error.message);
@@ -991,6 +1129,17 @@ function askClear() {
     copy: "This clears the list stored in the database.",
     accept: "Remove all",
     cancel: "Cancel",
+    tone: "danger",
+  });
+}
+
+function askDisconnect() {
+  openConfirm({
+    type: "disconnect",
+    title: "Disconnect your bank?",
+    copy: "Plaid revokes this app's access. Subscriptions found from that bank are removed. A statement you uploaded stays.",
+    accept: "Disconnect",
+    cancel: "Keep it linked",
     tone: "danger",
   });
 }
@@ -1084,12 +1233,33 @@ function onClick(event) {
   else if (action === "close-confirm") closeConfirm();
   else if (action === "accept-confirm") acceptConfirm();
   else if (action === "download") downloadJson();
+  else if (action === "connect-bank") connectBank();
+  else if (action === "ask-disconnect") askDisconnect();
+  else if (action === "load-test-bank") loadTestBank();
+  else if (action === "upload-statement") document.getElementById("statement-file").click();
+  else if (action === "sync-bank") syncBank();
+  else if (action === "keep-merchant") decideMerchant(target.dataset.key, "keep");
+  else if (action === "dismiss-merchant") decideMerchant(target.dataset.key, "dismiss");
+  else if (action === "logout") logout();
 }
 
 function onInput(event) {
-  if (event.target.id !== "search") return;
-  state.query = event.target.value;
-  refreshSubList();
+  if (event.target.id === "search") {
+    state.query = event.target.value;
+    refreshSubList();
+    return;
+  }
+  if (event.target.id === "activity-search" || event.target.id === "activity-from" || event.target.id === "activity-to") {
+    refreshActivityFilters(event.target);
+  }
+}
+
+function refreshActivityFilters(target) {
+  if (target.id === "activity-search") state.activityQuery = target.value;
+  else if (target.id === "activity-from") state.activityFrom = target.value;
+  else if (target.id === "activity-to") state.activityTo = target.value;
+  const host = document.getElementById("activity-host");
+  if (host) host.innerHTML = renderActivityRows();
 }
 
 function onChange(event) {
@@ -1097,7 +1267,10 @@ function onChange(event) {
   if (id === "filter-category") state.category = event.target.value;
   else if (id === "filter-status") state.status = event.target.value;
   else if (id === "filter-sort") state.sort = event.target.value;
-  else if (id === "status") {
+  else if (id === "activity-from" || id === "activity-to") {
+    refreshActivityFilters(event.target);
+    return;
+  } else if (id === "status") {
     syncRenewalLabel();
     return;
   } else {
@@ -1137,8 +1310,18 @@ function bind() {
   fillSelect("reminder-days", REMINDERS);
 }
 
-async function init() {
-  bind();
+let authMode = "login";
+
+function showGate() {
+  state.user = null;
+  document.body.classList.add("is-signed-out");
+}
+
+async function enterApp() {
+  document.body.classList.remove("is-signed-out");
+  document.getElementById("account-email").textContent = state.user.email;
+  const syncButton = document.getElementById("sync-bank");
+  syncButton.hidden = !state.bank.linked;
   const initial = viewFromHash();
   if (location.hash !== `#${initial}`) history.replaceState(null, "", `#${initial}`);
   state.view = initial;
@@ -1147,9 +1330,188 @@ async function init() {
   try {
     await load();
   } catch (error) {
-    state.loadError = "Start it from the project folder with python main.py, then open http://127.0.0.1:8000.";
+    state.loadError = "The subscription list could not be loaded.";
   }
   render();
+}
+
+async function onAuth(event) {
+  event.preventDefault();
+  const email = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value;
+  const errorBox = document.getElementById("auth-error");
+  errorBox.hidden = true;
+  const submit = document.getElementById("auth-submit");
+  submit.disabled = true;
+  try {
+    const path = authMode === "register" ? "/api/register" : "/api/login";
+    const user = await request("POST", path, { email, password });
+    state.user = { email: user.email };
+    const session = await request("GET", "/api/session");
+    state.bank = session.bank || { linked: false, institutions: [] };
+    await enterApp();
+  } catch (error) {
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function switchAuth() {
+  authMode = authMode === "login" ? "register" : "login";
+  const signingIn = authMode === "login";
+  document.getElementById("auth-submit").textContent = signingIn ? "Sign in" : "Create account";
+  document.getElementById("auth-switch").textContent = signingIn ? "Create an account" : "I already have an account";
+  document.getElementById("auth-copy").textContent = signingIn
+    ? "Sign in to see the subscriptions found from your bank."
+    : "Create an account. Your bank connection stays private to you.";
+  document.getElementById("auth-password").autocomplete = signingIn ? "current-password" : "new-password";
+  document.getElementById("auth-error").hidden = true;
+}
+
+async function loadTestBank() {
+  try {
+    const result = await request("POST", "/api/bank/sandbox");
+    await finishImport(result);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function connectBank() {
+  try {
+    const payload = await request("POST", "/api/bank/link-token");
+    if (payload.sandbox) {
+      toast("No text is sent. Enter code 123456.");
+    }
+    await loadPlaid();
+    const handler = window.Plaid.create({
+      token: payload.linkToken,
+      onSuccess: async (publicToken, metadata) => {
+        try {
+          const institution = metadata && metadata.institution ? metadata.institution.name : "";
+          const result = await request("POST", "/api/bank/exchange", { publicToken, institution });
+          await finishImport(result);
+        } catch (error) {
+          toast(error.message);
+        }
+      },
+    });
+    handler.open();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function loadPlaid() {
+  if (window.Plaid) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("The bank window could not be opened."));
+    document.head.appendChild(script);
+  });
+}
+
+async function syncBank() {
+  try {
+    const result = await request("POST", "/api/bank/sync");
+    await finishImport(result);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function onStatement(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  if (file.size > 1_000_000) {
+    toast("That statement is too large.");
+    return;
+  }
+  try {
+    const result = await request("POST", "/api/bank/statement", { csv: await file.text() });
+    await finishImport(result);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function loadReview() {
+  try {
+    state.activity = await request("GET", "/api/bank/review");
+    state.activityError = "";
+  } catch (error) {
+    state.activity = [];
+    state.activityError = error.message;
+  }
+  if (state.view === "activity") render({ keepScroll: true });
+}
+
+async function decideMerchant(key, decision) {
+  try {
+    const result = await request("POST", "/api/bank/review", { key, decision });
+    await load();
+    await loadReview();
+    toast(decision === "keep" ? `Tracking ${result.name || "that charge"}.` : "Hidden. It will not be added again.");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function finishImport(result) {
+  const session = await request("GET", "/api/session");
+  state.bank = session.bank || state.bank;
+  document.getElementById("sync-bank").hidden = !state.bank.linked;
+  state.activity = null;
+  state.activityError = "";
+  await load();
+  render();
+  if (!result.detected) {
+    toast(result.pending
+      ? "The bank is still preparing history. Sync again in a minute."
+      : "No recurring charges were found.");
+    return;
+  }
+  const parts = [];
+  if (result.added) parts.push(`Added ${result.added}`);
+  if (result.updated) parts.push(`updated ${result.updated}`);
+  toast(`${parts.join(" and ") || "Checked"} from your bank.`);
+}
+
+async function logout() {
+  try {
+    await request("POST", "/api/logout");
+  } catch (error) {
+    toast(error.message);
+  }
+  state.subscriptions = [];
+  state.activity = null;
+  state.bank = { linked: false, institutions: [], sandbox: false };
+  showGate();
+}
+
+async function init() {
+  bind();
+  document.getElementById("auth-form").addEventListener("submit", onAuth);
+  document.getElementById("auth-switch").addEventListener("click", switchAuth);
+  document.getElementById("statement-file").addEventListener("change", onStatement);
+  try {
+    const session = await request("GET", "/api/session");
+    if (session.user) {
+      state.user = session.user;
+      state.bank = session.bank || state.bank;
+      await enterApp();
+      return;
+    }
+  } catch (error) {
+    document.getElementById("auth-error").textContent = "The server could not be reached.";
+    document.getElementById("auth-error").hidden = false;
+  }
+  showGate();
 }
 
 init();
