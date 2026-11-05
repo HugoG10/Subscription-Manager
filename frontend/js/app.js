@@ -1339,13 +1339,18 @@ async function onAuth(event) {
   event.preventDefault();
   const email = document.getElementById("auth-email").value.trim();
   const password = document.getElementById("auth-password").value;
+  const confirm = document.getElementById("auth-confirm").value;
   const errorBox = document.getElementById("auth-error");
   errorBox.hidden = true;
   const submit = document.getElementById("auth-submit");
   submit.disabled = true;
   try {
     const path = authMode === "register" ? "/api/register" : "/api/login";
-    const user = await request("POST", path, { email, password });
+    const body = authMode === "register" ? { email, password, confirm } : { email, password };
+    if (authMode === "register" && confirm !== password) {
+      throw new Error("Type the same password again.");
+    }
+    const user = await request("POST", path, body);
     state.user = { email: user.email };
     const session = await request("GET", "/api/session");
     state.bank = session.bank || { linked: false, institutions: [] };
@@ -1366,7 +1371,14 @@ function switchAuth() {
   document.getElementById("auth-copy").textContent = signingIn
     ? "Sign in to see the subscriptions found from your bank."
     : "Create an account. Your bank connection stays private to you.";
-  document.getElementById("auth-password").autocomplete = signingIn ? "current-password" : "new-password";
+  const passwordField = document.getElementById("auth-password");
+  passwordField.autocomplete = signingIn ? "current-password" : "new-password";
+  passwordField.minLength = signingIn ? 1 : 10;
+  const confirmField = document.getElementById("auth-confirm");
+  confirmField.required = !signingIn;
+  confirmField.value = "";
+  document.getElementById("confirm-label").hidden = signingIn;
+  document.getElementById("password-rules").hidden = signingIn;
   document.getElementById("auth-error").hidden = true;
 }
 

@@ -42,7 +42,7 @@ class ApiTests(unittest.TestCase):
         self.client = self.app.test_client()
         registered = self.client.post(
             "/api/register",
-            json={"email": "ada@example.com", "password": "correct-horse"},
+            json={"email": "ada@example.com", "password": "correct-horse", "confirm": "correct-horse"},
         )
         self.assertEqual(registered.status_code, 201)
         cookie = registered.headers.get("Set-Cookie", "")
@@ -123,7 +123,7 @@ class ApiTests(unittest.TestCase):
         other = self.app.test_client()
         registered = other.post(
             "/api/register",
-            json={"email": "bea@example.com", "password": "another-secret"},
+            json={"email": "bea@example.com", "password": "another-secret", "confirm": "another-secret"},
         )
         self.assertEqual(registered.status_code, 201)
         self.assertEqual(other.get("/api/subscriptions").get_json(), [])
@@ -131,6 +131,38 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         still_there = self.client.get("/api/subscriptions")
         self.assertEqual(still_there.get_json()[0]["name"], "Hulu")
+
+    def test_signup_rejects_a_weak_or_unconfirmed_password(self):
+        client = self.app.test_client()
+        common = client.post(
+            "/api/register",
+            json={"email": "cam@example.com", "password": "password123", "confirm": "password123"},
+        )
+        self.assertEqual(common.status_code, 400)
+        self.assertIn("too common", common.get_json()["errors"][0])
+        letters = client.post(
+            "/api/register",
+            json={"email": "cam@example.com", "password": "onlyletters", "confirm": "onlyletters"},
+        )
+        self.assertEqual(letters.status_code, 400)
+        self.assertIn("number or symbol", letters.get_json()["errors"][0])
+        mismatch = client.post(
+            "/api/register",
+            json={"email": "cam@example.com", "password": "correct-horse", "confirm": "correct-horses"},
+        )
+        self.assertEqual(mismatch.status_code, 400)
+        self.assertIn("same password", mismatch.get_json()["errors"][0])
+        copied = client.post(
+            "/api/register",
+            json={
+                "email": "longname12@example.com",
+                "password": "longname12",
+                "confirm": "longname12",
+            },
+        )
+        self.assertEqual(copied.status_code, 400)
+        self.assertIn("email", copied.get_json()["errors"][0])
+        self.assertIsNone(self.app.store.get_user_by_email("cam@example.com"))
 
     def test_wrong_password_is_rejected_without_detail(self):
         wrong = self.app.test_client().post(

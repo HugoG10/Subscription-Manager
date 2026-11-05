@@ -26,6 +26,11 @@
         Password
         <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required>
       </label>
+      <label id="confirm-label" hidden>
+        Confirm password
+        <input id="auth-confirm" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128">
+      </label>
+      <p class="fine" id="password-rules" hidden>At least 10 characters, with letters and a number or symbol. It cannot be your email or a common password.</p>
       <p class="form-error" id="auth-error" hidden></p>
       <button class="btn btn-primary" id="auth-submit" type="submit">Sign in</button>
       <button class="btn btn-ghost" id="auth-switch" type="button">Create an account</button>
@@ -153,6 +158,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

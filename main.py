@@ -214,6 +214,9 @@ def create_app(
         problem = _password_error(password, email)
         if problem:
             return jsonify({"errors": [problem]}), 400
+        confirm = payload.get("confirm")
+        if not isinstance(confirm, str) or confirm != password:
+            return jsonify({"errors": ["Type the same password again."]}), 400
         user = store.create_user(email, generate_password_hash(password, method="scrypt"))
         if user is None:
             store.record_login_failure(email)
@@ -644,13 +647,46 @@ def _clean_email(value: object) -> str | None:
     return email
 
 
+COMMON_PASSWORDS = {
+    "1234567890",
+    "12345678901",
+    "abcdefghij",
+    "admin12345",
+    "baseball123",
+    "changeme123",
+    "football123",
+    "iloveyou123",
+    "letmein123",
+    "password1!",
+    "password123",
+    "passw0rd12",
+    "qwerty1234",
+    "qwertyuiop",
+    "trustno1!!",
+    "welcome123",
+}
+
+
 def _password_error(password: object, email: str) -> str | None:
     if not isinstance(password, str) or len(password) < 10:
         return "Use at least 10 characters."
     if len(password) > 128:
         return "Use a password of 128 characters or fewer."
-    if password.lower() == email:
+    lowered = password.lower()
+    local = email.split("@", 1)[0]
+    if lowered == email or lowered == local:
         return "Use a password that is not your email."
+    if lowered in COMMON_PASSWORDS:
+        return "That password is too common. Choose another."
+    kinds = sum(
+        [
+            any(character.isalpha() for character in password),
+            any(character.isdigit() for character in password),
+            any(not character.isalnum() for character in password),
+        ]
+    )
+    if kinds < 2:
+        return "Use letters and a number or symbol."
     return None
 
 
