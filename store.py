@@ -154,14 +154,14 @@ class SubscriptionStore:
 
     def login_is_limited(self, email: str) -> bool:
         document = self.attempts.find_one({"_id": email})
-        if document is None or document["resetAt"] <= _now():
+        if document is None or _as_utc(document["resetAt"]) <= _now():
             return False
         return document["count"] >= LOGIN_LIMIT
 
     def record_login_failure(self, email: str) -> None:
         now = _now()
         document = self.attempts.find_one({"_id": email})
-        if document is None or document["resetAt"] <= now:
+        if document is None or _as_utc(document["resetAt"]) <= now:
             self.attempts.replace_one(
                 {"_id": email},
                 {"count": 1, "resetAt": now + LOGIN_WINDOW},
@@ -545,6 +545,12 @@ def _public_review(document: dict, include_status: bool) -> dict:
         row["status"] = document.get("status") or "pending"
         row["userId"] = document.get("userId")
     return row
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _now() -> datetime:

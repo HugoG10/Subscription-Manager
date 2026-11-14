@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wallet Worth — Subscription tracker</title>
-  <meta name="description" content="Wallet Worth helps you organize subscriptions, see recurring spending, and catch upcoming renewals.">
+  <meta name="description" content="Wallet Worth tracks the subscriptions you pay for, shows the monthly total, and lists renewals before they happen.">
   <meta name="robots" content="index, follow">
   <meta property="og:title" content="Wallet Worth">
   <meta property="og:description" content="Organize subscriptions, see what they cost, and notice renewals before they happen.">
@@ -14,61 +14,172 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="css/styles.css?v=7">
+  <link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 <body class="is-signed-out">
   <a class="skip" href="#view">Skip to content</a>
   <div id="site">
     <header class="site-bar">
-      <a class="brand" href="/">
-        <span class="mark" aria-hidden="true">W</span>
-        <span class="brand-name">Wallet Worth</span>
-      </a>
-      <nav class="site-links" aria-label="Site">
-        <a href="/features">Features</a>
-        <a href="/about">About</a>
-        <a href="/faq">FAQ</a>
-        <a href="/contact">Contact</a>
-        <a href="/#signin">Create account</a>
-      </nav>
+      <div class="site-wrap site-bar-inner">
+        <a class="brand" href="/">
+          <span class="mark" aria-hidden="true">W</span>
+          <span class="brand-name">Wallet Worth</span>
+        </a>
+        <nav class="site-links" aria-label="Site">
+          <a href="/#demo">Demo</a>
+          <a href="/features">Features</a>
+          <a href="/about">About</a>
+          <a href="/faq">FAQ</a>
+          <a href="/contact">Contact</a>
+          <a class="btn btn-primary" href="/#signin">Get started</a>
+        </nav>
+      </div>
     </header>
-    <main id="public-main">
+    <main id="public-main" class="site-wrap">
       <section data-public-page="home">
         <div class="site-hero">
-          <div>
+          <div class="hero-copy">
             <p class="site-kicker">Subscription tracker</p>
-            <h1>See what your subscriptions cost.</h1>
-            <p class="intro">Wallet Worth keeps the plans you pay for in one place, turns them into a monthly total, and reminds you before a renewal.</p>
+            <h1>Your subscriptions. Your money. Your control.</h1>
+            <p class="intro">Take control of your recurring expenses with Wallet Worth. Track subscriptions, understand your spending, and stay ahead of upcoming renewals — all in one place.</p>
             <p class="site-actions">
-              <a class="btn btn-primary" href="/#signin">Create an account</a>
-              <a class="btn btn-ghost" href="/features">See how it works</a>
+              <a class="btn btn-primary" href="/#signin">Get started — free <span class="btn-arrow" aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#demo">Try interactive demo <span class="btn-arrow" aria-hidden="true">→</span></a>
             </p>
+            <p class="fine">Creating an account does not start a charge. There is no paid plan in the app today.</p>
             <p class="fine" id="milestone-note" hidden></p>
           </div>
-          <div id="gate-mount"></div>
+          <div class="preview" aria-hidden="true">
+            <div class="preview-bar"><span></span><span></span><span></span><strong>Sample overview</strong></div>
+            <div class="preview-stats">
+              <p><span>Per month</span><strong>$41.47</strong></p>
+              <p><span>Per year</span><strong>$497.64</strong></p>
+              <p class="is-alert"><span>Reminders</span><strong>2</strong></p>
+            </div>
+            <ul class="preview-list">
+              <li><i style="background:#de3341"></i><span>YouTube Premium<small>Renews in 3 days</small></span><b>$13.99</b></li>
+              <li><i style="background:#de3341"></i><span>Netflix<small>Renews in 6 days</small></span><b>$15.49</b></li>
+              <li><i style="background:#5b3c9c"></i><span>Spotify<small>Renews in 12 days</small></span><b>$11.99</b></li>
+            </ul>
+            <div class="preview-meter" title="Sample monthly total by category">
+              <span style="width:71%"></span>
+              <span style="width:29%; background:#5b3c9c"></span>
+            </div>
+            <p class="preview-float">2 renewals inside 7 days</p>
+          </div>
         </div>
-        <section class="site-block">
-          <h2>What you can do today</h2>
+
+        <section class="site-block" id="demo">
+          <div class="demo-intro">
+            <div>
+              <p class="site-kicker">Try Wallet Worth</p>
+              <h2>Change the list. Watch the total move.</h2>
+              <p class="intro">These are sample plans in this browser. Pausing one removes it from the monthly total, the same way the signed-in app treats a paused plan. Nothing is saved and no account is used.</p>
+            </div>
+            <button class="btn btn-ghost" type="button" id="demo-reset">Reset sample</button>
+          </div>
+          <div class="demo-shell">
+            <div class="panel demo-list">
+              <div class="panel-head"><h2>Sample plans</h2><span id="demo-count"></span></div>
+              <div id="demo-plans"></div>
+              <form id="demo-add" class="demo-add">
+                <label>Name <input name="name" type="text" maxlength="40" placeholder="YouTube Premium" required></label>
+                <label>Monthly price <input name="cost" type="number" min="0.01" max="9999" step="0.01" placeholder="13.99" required></label>
+                <label>Category
+                  <select name="category">
+                    <option value="streaming">Streaming</option>
+                    <option value="music">Music</option>
+                    <option value="software">Software</option>
+                    <option value="cloud">Cloud</option>
+                    <option value="news">News</option>
+                    <option value="fitness">Fitness</option>
+                    <option value="gaming">Gaming</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <button class="btn btn-primary" type="submit">Add to demo</button>
+                <p class="form-error" id="demo-error" hidden></p>
+              </form>
+            </div>
+            <div class="demo-side">
+              <div class="stats demo-stats">
+                <article class="stat"><span>Per month</span><strong id="demo-month">$0.00</strong><em>Active plans</em></article>
+                <article class="stat"><span>Per year</span><strong id="demo-year">$0.00</strong><em>Those plans, annualized</em></article>
+                <article class="stat" id="demo-reminder-card"><span>Reminders</span><strong id="demo-reminders">0</strong><em>Inside 7 days</em></article>
+              </div>
+              <section class="panel">
+                <div class="panel-head"><h2>Coming up</h2><span>Next renewals</span></div>
+                <div id="demo-upcoming"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head"><h2>Where the money goes</h2><span>Active plans</span></div>
+                <div id="demo-bars"></div>
+              </section>
+            </div>
+          </div>
+          <p class="fine" id="demo-live" aria-live="polite"></p>
+        </section>
+
+        <section class="site-block reveal">
+          <h2>What you can do with an account</h2>
           <div class="site-grid">
             <article><h3>Keep a list</h3><p>Add plans by hand, with a price, billing cycle, category, and renewal date.</p></article>
             <article><h3>See the total</h3><p>Monthly and yearly totals skip paused and canceled plans. Trials stay separate.</p></article>
-            <article><h3>Get reminders</h3><p>A plan shows up when its renewal is inside the number of days you chose.</p></article>
-            <article><h3>Bring in charges</h3><p>Upload a CSV statement, or connect a bank through Plaid. You mark which charges are subscriptions.</p></article>
+            <article><h3>Get reminders</h3><p>A plan shows up in the app when its renewal is inside the number of days you chose. Wallet Worth does not send email or text reminders.</p></article>
+            <article><h3>Bring in charges</h3><p>Upload a CSV statement, or connect a bank through Plaid. You mark which charges are subscriptions. The app does not cancel them.</p></article>
           </div>
         </section>
-        <section class="site-block">
+        <section class="site-block reveal" id="how">
           <h2>How it works</h2>
-          <ol class="site-steps">
-            <li><strong>Create an account.</strong> Your list is private to that login.</li>
-            <li><strong>Add subscriptions.</strong> Type them in, upload a statement, or review bank charges.</li>
-            <li><strong>Watch renewals and spending.</strong> The overview, reminders, and usage pages use the plans you saved.</li>
-          </ol>
+          <div class="steps-layout">
+            <div class="step-list" role="tablist" aria-label="How Wallet Worth works">
+              <button class="step" type="button" role="tab" id="step-tab-1" aria-controls="step-panel-1" aria-selected="true" data-step="1">
+                <span>1</span>
+                <strong>Create an account.</strong>
+                <small>Your list is private to that login. The demo above is not saved.</small>
+              </button>
+              <button class="step" type="button" role="tab" id="step-tab-2" aria-controls="step-panel-2" aria-selected="false" data-step="2">
+                <span>2</span>
+                <strong>Add subscriptions.</strong>
+                <small>Type them in, upload a statement, or review bank charges.</small>
+              </button>
+              <button class="step" type="button" role="tab" id="step-tab-3" aria-controls="step-panel-3" aria-selected="false" data-step="3">
+                <span>3</span>
+                <strong>Watch renewals and spending.</strong>
+                <small>The overview, reminders, and usage pages use the plans you saved.</small>
+              </button>
+            </div>
+            <div class="step-stage">
+              <div class="step-panel" id="step-panel-1" role="tabpanel" aria-labelledby="step-tab-1">
+                <p class="site-kicker">Account</p>
+                <p>An account starts empty. Only that login can see the plans you add.</p>
+              </div>
+              <div class="step-panel" id="step-panel-2" role="tabpanel" aria-labelledby="step-tab-2" hidden>
+                <p class="site-kicker">A plan</p>
+                <p class="step-row"><i style="background:#de3341"></i><span>Netflix</span><b>$15.49/mo</b></p>
+                <p>You can type a plan, upload a CSV, or mark bank charges. The app does not cancel them.</p>
+              </div>
+              <div class="step-panel" id="step-panel-3" role="tabpanel" aria-labelledby="step-tab-3" hidden>
+                <p class="site-kicker">Overview</p>
+                <p class="step-total">$41.47<span> per month in this sample</span></p>
+                <p>Reminders show inside the app when a renewal is close. They are not emails.</p>
+              </div>
+            </div>
+          </div>
         </section>
-        <section class="site-block" id="review-preview">
+        <section class="site-block signin-block reveal" id="signin">
+          <div>
+            <p class="site-kicker">Your own list</p>
+            <h2>Start with an empty account.</h2>
+            <p class="intro">The sample plans stay on this page. An account starts blank, and only you can see what you add.</p>
+          </div>
+          <div id="gate-mount"></div>
+        </section>
+        <section class="site-block reveal" id="review-preview">
           <h2>Reviews</h2>
           <div id="public-reviews"><p class="fine">No approved reviews yet.</p></div>
         </section>
-        <section class="site-block">
+        <section class="site-block reveal">
           <h2>Questions</h2>
           <div class="faq-list">
             <details><summary>Does Wallet Worth cancel subscriptions for me?</summary><p>No. It tracks them. You cancel with the company that bills you.</p></details>
@@ -76,6 +187,11 @@
             <details><summary>Is there a fee?</summary><p>There is no paid plan in the app today. Creating an account does not start a charge.</p></details>
           </div>
           <p><a href="/faq">Read the full FAQ</a></p>
+        </section>
+        <section class="closing reveal">
+          <h2>Put the recurring charges in one place.</h2>
+          <p>Create an account and add the plans you already pay for.</p>
+          <a class="btn btn-primary" href="/#signin">Get started — free <span class="btn-arrow" aria-hidden="true">→</span></a>
         </section>
       </section>
       <section data-public-page="features" hidden>
@@ -199,36 +315,36 @@
       </section>
     </main>
     <footer class="site-footer">
-      <div>
-        <p class="brand-name">Wallet Worth</p>
-        <p class="fine">A private subscription list with spending totals and renewal reminders.</p>
+      <div class="site-wrap site-footer-grid">
+        <div class="site-col site-col-brand">
+          <p class="brand-name">Wallet Worth</p>
+          <p class="fine">A private subscription list with spending totals and renewal reminders.</p>
+        </div>
+        <div class="site-col">
+          <h2>Product</h2>
+          <a href="/features">Features</a>
+          <a href="/#signin">Dashboard</a>
+          <a href="/features">How it works</a>
+          <a href="/faq">FAQ</a>
+        </div>
+        <div class="site-col">
+          <h2>Resources</h2>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/contact">Feedback</a>
+          <a href="/#reviews">Reviews</a>
+        </div>
+        <div class="site-col">
+          <h2>Legal</h2>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy">Privacy Policy</a>
+        </div>
+        <div class="site-col">
+          <h2>Community</h2>
+          <a href="https://github.com/HugoG10/Subscription-Manager">GitHub</a>
+        </div>
+        <p class="fine site-copy">© <span id="copyright-year"></span> Wallet Worth. Independent project.</p>
       </div>
-      <div>
-        <h2>Product</h2>
-        <a href="/features">Features</a>
-        <a href="/#signin">Dashboard</a>
-        <a href="/features">How it works</a>
-        <a href="/faq">FAQ</a>
-      </div>
-      <div>
-        <h2>Resources</h2>
-        <a href="/about">About Wallet Worth</a>
-        <a href="/contact">Contact</a>
-        <a href="/contact">Feedback</a>
-        <a href="/#reviews">Reviews</a>
-      </div>
-      <div>
-        <h2>Legal</h2>
-        <a href="/terms">Terms of Service</a>
-        <a href="/privacy">Privacy Policy</a>
-        <p class="fine">Cookie policy: only a sign-in cookie and on-device attribution storage. No separate cookie banner is claimed.</p>
-      </div>
-      <div>
-        <h2>Community</h2>
-        <a href="https://github.com/HugoG10/Subscription-Manager">GitHub</a>
-        <p class="fine">LinkedIn is not linked until you provide an official profile URL.</p>
-      </div>
-      <p class="fine site-copy">© <span id="copyright-year"></span> Wallet Worth. Independent project.</p>
     </footer>
   </div>
   <div class="gate" id="gate">
@@ -248,7 +364,17 @@
         Confirm password
         <input id="auth-confirm" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128">
       </label>
-      <p class="fine" id="password-rules" hidden>At least 10 characters, with letters and a number or symbol. It cannot be your email or a common password.</p>
+      <div id="password-meter" class="password-meter" hidden>
+        <div class="password-track" aria-hidden="true"><span id="password-fill"></span></div>
+        <p id="password-label" aria-live="polite">Password strength</p>
+        <ul class="password-checks" id="password-checks">
+          <li data-check="length">At least 10 characters</li>
+          <li data-check="letter">A letter</li>
+          <li data-check="mix">A number or a symbol</li>
+          <li data-check="email">Not your email</li>
+          <li data-check="common">Not a common password</li>
+        </ul>
+      </div>
       <p class="form-error" id="auth-error" hidden></p>
       <button class="btn btn-primary" id="auth-submit" type="submit">Sign in</button>
       <button class="btn btn-ghost" id="auth-switch" type="button">Create an account</button>
@@ -378,7 +504,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="js/public.js?v=1"></script>
-  <script src="js/app.js?v=7"></script>
+  <script src="js/public.js?v=4"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

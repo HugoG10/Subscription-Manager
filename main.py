@@ -260,7 +260,7 @@ def create_app(
         password = payload.get("password")
         if email is None:
             return jsonify({"errors": ["Enter a valid email."]}), 400
-        if store.login_is_limited(email):
+        if _auth_is_limited(email):
             return jsonify({"errors": ["Too many attempts. Try again in a few minutes."]}), 429
         problem = _password_error(password, email)
         if problem:
@@ -274,8 +274,8 @@ def create_app(
             acquisition=clean_acquisition(payload.get("acquisition")),
         )
         if user is None:
-            store.record_login_failure(email)
-            return jsonify({"errors": ["An account with that email already exists."]}), 400
+            _note_auth_failure(email)
+            return jsonify({"errors": ["Email or password is incorrect."]}), 401
         _start_session(user["id"])
         return jsonify({"email": user["email"]}), 201
 
@@ -286,14 +286,13 @@ def create_app(
         password = payload.get("password")
         if not isinstance(password, str):
             password = ""
-        if email and store.login_is_limited(email):
+        if _auth_is_limited(email):
             check_password_hash(DUMMY_HASH, password)
             return jsonify({"errors": ["Too many attempts. Try again in a few minutes."]}), 429
         user = store.get_user_by_email(email) if email else None
         password_hash = user["passwordHash"] if user else DUMMY_HASH
         if user is None or not check_password_hash(password_hash, password):
-            if email:
-                store.record_login_failure(email)
+            _note_auth_failure(email)
             return jsonify({"errors": ["Email or password is incorrect."]}), 401
         store.clear_login_failures(email)
         store.touch_seen(user["id"])
@@ -714,6 +713,16 @@ def create_app(
         forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         address = forwarded or (request.remote_addr or "")
         return hashlib.sha256(f"{address}|{app.secret_key}".encode()).hexdigest()[:32]
+
+    def _auth_is_limited(email: str) -> bool:
+        if email and store.login_is_limited(email):
+            return True
+        return store.login_is_limited(f"ip:{_ip_hash()}")
+
+    def _note_auth_failure(email: str) -> None:
+        if email:
+            store.record_login_failure(email)
+        store.record_login_failure(f"ip:{_ip_hash()}")
 
     def _start_session(user_id: str) -> None:
         session.clear()

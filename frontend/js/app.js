@@ -329,9 +329,12 @@ async function request(method, path, body) {
     showGate();
   }
   if (!response.ok) {
+    const signing = path === "/api/login" || path === "/api/register";
     const message = Array.isArray(payload.errors) && payload.errors.length
       ? payload.errors.join(" ")
-      : "The server could not save that change.";
+      : signing
+        ? "Email or password is incorrect."
+        : "The server could not save that change.";
     throw new Error(message);
   }
   return payload;
@@ -1491,10 +1494,14 @@ let authMode = "login";
 function showGate() {
   state.user = null;
   document.body.classList.add("is-signed-out");
+  const skip = document.querySelector(".skip");
+  if (skip) skip.setAttribute("href", "#public-main");
 }
 
 async function enterApp() {
   document.body.classList.remove("is-signed-out");
+  const skip = document.querySelector(".skip");
+  if (skip) skip.setAttribute("href", "#view");
   document.getElementById("account-email").textContent = state.user.email;
   const syncButton = document.getElementById("sync-bank");
   syncButton.hidden = !state.bank.linked;
@@ -1526,6 +1533,10 @@ async function onAuth(event) {
     if (authMode === "register" && confirm !== password) {
       throw new Error("Type the same password again.");
     }
+    if (authMode === "register") {
+      const problem = passwordProblem(password, email);
+      if (problem) throw new Error(problem);
+    }
     const user = await request("POST", path, body);
     state.user = { email: user.email, admin: Boolean(user.admin) };
     const session = await request("GET", "/api/session");
@@ -1555,8 +1566,84 @@ function switchAuth() {
   confirmField.required = !signingIn;
   confirmField.value = "";
   document.getElementById("confirm-label").hidden = signingIn;
-  document.getElementById("password-rules").hidden = signingIn;
+  document.getElementById("password-meter").hidden = signingIn;
   document.getElementById("auth-error").hidden = true;
+  updatePasswordMeter();
+}
+
+const COMMON_PASSWORDS = new Set([
+  "1234567890",
+  "12345678901",
+  "abcdefghij",
+  "admin12345",
+  "baseball123",
+  "changeme123",
+  "football123",
+  "iloveyou123",
+  "letmein123",
+  "password1!",
+  "password123",
+  "passw0rd12",
+  "qwerty1234",
+  "qwertyuiop",
+  "trustno1!!",
+  "welcome123",
+]);
+
+function passwordChecks(password, email) {
+  const lowered = password.toLowerCase();
+  const local = email.split("@")[0] || "";
+  const chars = [...password];
+  const letter = chars.some((character) => /\p{L}/u.test(character));
+  const digit = chars.some((character) => /\p{N}/u.test(character));
+  const symbol = chars.some((character) => !/\p{L}/u.test(character) && !/\p{N}/u.test(character));
+  const upper = chars.some((character) => character.toLowerCase() !== character.toUpperCase() && character === character.toUpperCase());
+  const lower = chars.some((character) => character.toLowerCase() !== character.toUpperCase() && character === character.toLowerCase());
+  return {
+    length: password.length >= 10 && password.length <= 128,
+    letter,
+    mix: digit || symbol,
+    email: password.length > 0 && lowered !== email && lowered !== local,
+    common: password.length > 0 && !COMMON_PASSWORDS.has(lowered),
+    good: password.length >= 12 && upper && lower && (digit || symbol),
+    excellent: password.length >= 14 && upper && lower && digit && symbol,
+  };
+}
+
+function passwordProblem(password, email) {
+  const checks = passwordChecks(password, email);
+  if (password.length > 128) return "Use a password of 128 characters or fewer.";
+  if (!checks.length) return "Use at least 10 characters.";
+  if (!checks.email) return "Use a password that is not your email.";
+  if (!checks.common) return "That password is too common. Choose another.";
+  if (!checks.letter || !checks.mix) return "Use letters and a number or symbol.";
+  return "";
+}
+
+function updatePasswordMeter() {
+  const meter = document.getElementById("password-meter");
+  if (!meter || meter.hidden) return;
+  const password = document.getElementById("auth-password").value;
+  const email = document.getElementById("auth-email").value.trim().toLowerCase();
+  const checks = passwordChecks(password, email);
+  meter.querySelectorAll("[data-check]").forEach((item) => {
+    item.classList.toggle("is-met", Boolean(checks[item.dataset.check]));
+  });
+  const required = checks.length && checks.letter && checks.mix && checks.email && checks.common;
+  const level = !password
+    ? ""
+    : checks.excellent && required
+      ? "excellent"
+      : checks.good && required
+        ? "good"
+        : required
+          ? "fair"
+          : "weak";
+  meter.classList.remove("is-weak", "is-fair", "is-good", "is-excellent");
+  if (level) meter.classList.add(`is-${level}`);
+  const label = document.getElementById("password-label");
+  const names = { weak: "Weak password", fair: "Fair password", good: "Good password", excellent: "Excellent password" };
+  label.textContent = names[level] || "Password strength";
 }
 
 async function loadTestBank() {
@@ -1750,6 +1837,8 @@ async function moderateReview(id, status) {
 async function init() {
   bind();
   document.getElementById("auth-form").addEventListener("submit", onAuth);
+  document.getElementById("auth-password").addEventListener("input", updatePasswordMeter);
+  document.getElementById("auth-email").addEventListener("input", updatePasswordMeter);
   document.getElementById("auth-switch").addEventListener("click", switchAuth);
   document.getElementById("statement-file").addEventListener("change", onStatement);
   try {
