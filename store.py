@@ -94,6 +94,8 @@ class SubscriptionStore:
         self.charges = self.db["charges"]
         self.attempts = self.db["login_attempts"]
         self.dismissed = self.db["dismissed_merchants"]
+        self.reviews = self.db["reviews"]
+        self.messages = self.db["messages"]
 
     def initialize(self) -> None:
         try:
@@ -110,14 +112,27 @@ class SubscriptionStore:
         self.charges.create_index([("userId", 1), ("posted", 1)])
         self.bank_items.create_index("userId")
         self.dismissed.create_index("userId")
+        self.reviews.create_index("userId", unique=True)
+        self.messages.create_index("createdAt")
 
-    def create_user(self, email: str, password_hash: str) -> dict | None:
+    def create_user(self, email: str, password_hash: str, acquisition: dict | None = None) -> dict | None:
         user_id = uuid4().hex
+        now = _now()
         document = {
             "_id": user_id,
             "email": email,
             "passwordHash": password_hash,
-            "createdAt": _now(),
+            "createdAt": now,
+            "lastSeenAt": now,
+            "emailVerified": False,
+            "excluded": False,
+            "acquisition": acquisition or {
+                "source": "direct",
+                "medium": "",
+                "campaign": "",
+                "content": "",
+                "term": "",
+            },
         }
         try:
             self.users.insert_one(document)
@@ -157,6 +172,125 @@ class SubscriptionStore:
 
     def clear_login_failures(self, email: str) -> None:
         self.attempts.delete_one({"_id": email})
+
+    def touch_seen(self, user_id: str) -> None:
+        self.users.update_one({"_id": user_id}, {"$set": {"lastSeenAt": _now()}})
+
+    def set_excluded(self, user_id: str, excluded: bool) -> bool:
+        result = self.users.update_one({"_id": user_id}, {"$set": {"excluded": excluded}})
+        return result.matched_count > 0
+
+    def growth_documents(self) -> list[dict]:
+        return list(self.users.find({}))
+
+    def admin_accounts(self) -> list[dict]:
+        from growth import is_eligible, is_excluded, source_of
+
+        rows = []
+        for document in self.users.find({}).sort("createdAt", -1):
+            created = document.get("createdAt")
+            rows.append(
+                {
+                    "id": document["_id"],
+                    "email": document.get("email") or "",
+                    "createdAt": created.isoformat() if isinstance(created, datetime) else None,
+                    "emailVerified": document.get("emailVerified") is True,
+                    "source": source_of(document),
+                    "eligible": is_eligible(document),
+                    "excluded": is_excluded(document),
+                    "manualExclusion": document.get("excluded") is True,
+                }
+            )
+        return rows
+
+    def delete_account(self, user_id: str) -> None:
+        self.subscriptions.delete_many({"userId": user_id})
+        self.charges.delete_many({"userId": user_id})
+        self.bank_items.delete_many({"userId": user_id})
+        self.dismissed.delete_many({"userId": user_id})
+        self.reviews.delete_many({"userId": user_id})
+        self.users.delete_one({"_id": user_id})
+
+    def save_review(self, user_id: str, rating: int, body: str, display_name: str) -> dict:
+        now = _now()
+        existing = self.reviews.find_one({"userId": user_id})
+        document = {
+            "userId": user_id,
+            "rating": rating,
+            "body": body,
+            "displayName": display_name,
+            "consent": True,
+            "status": "pending",
+            "updatedAt": now,
+        }
+        if existing is None:
+            document["_id"] = uuid4().hex
+            document["createdAt"] = now
+            self.reviews.insert_one(document)
+        else:
+            document["createdAt"] = existing.get("createdAt") or now
+            self.reviews.update_one({"userId": user_id}, {"$set": document})
+            document["_id"] = existing["_id"]
+        return _public_review(document, include_status=True)
+
+    def review_for_user(self, user_id: str) -> dict | None:
+        document = self.reviews.find_one({"userId": user_id})
+        if document is None:
+            return None
+        return _public_review(document, include_status=True)
+
+    def public_reviews(self) -> list[dict]:
+        documents = self.reviews.find({"status": "approved"}).sort("updatedAt", -1)
+        return [_public_review(document, include_status=False) for document in documents]
+
+    def list_reviews(self) -> list[dict]:
+        documents = self.reviews.find({}).sort("updatedAt", -1)
+        return [_public_review(document, include_status=True) for document in documents]
+
+    def moderate_review(self, review_id: str, status: str) -> bool:
+        result = self.reviews.update_one(
+            {"_id": review_id},
+            {"$set": {"status": status, "updatedAt": _now()}},
+        )
+        return result.matched_count > 0
+
+    def delete_review(self, review_id: str) -> bool:
+        result = self.reviews.delete_one({"_id": review_id})
+        return result.deleted_count > 0
+
+    def contact_is_limited(self, ip_hash: str) -> bool:
+        since = _now() - timedelta(hours=1)
+        return self.messages.count_documents({"ipHash": ip_hash, "createdAt": {"$gte": since}}) >= 5
+
+    def save_message(self, name: str, email: str, topic: str, body: str, ip_hash: str) -> None:
+        self.messages.insert_one(
+            {
+                "_id": uuid4().hex,
+                "name": name,
+                "email": email,
+                "topic": topic,
+                "body": body,
+                "ipHash": ip_hash,
+                "createdAt": _now(),
+            }
+        )
+
+    def list_messages(self) -> list[dict]:
+        documents = self.messages.find({}).sort("createdAt", -1).limit(100)
+        rows = []
+        for document in documents:
+            created = document.get("createdAt")
+            rows.append(
+                {
+                    "id": document["_id"],
+                    "name": document.get("name") or "",
+                    "email": document.get("email") or "",
+                    "topic": document.get("topic") or "",
+                    "body": document.get("body") or "",
+                    "createdAt": created.isoformat() if isinstance(created, datetime) else None,
+                }
+            )
+        return rows
 
     def list_subscriptions(self, user_id: str) -> list[Subscription]:
         documents = self.subscriptions.find({"userId": user_id}).sort([("renewalDate", 1), ("name", 1)])
@@ -396,6 +530,21 @@ class SubscriptionStore:
         if not subscriptions:
             return
         self.subscriptions.insert_many([_to_document(item, user_id) for item in subscriptions])
+
+
+def _public_review(document: dict, include_status: bool) -> dict:
+    created = document.get("createdAt")
+    row = {
+        "id": document["_id"],
+        "rating": document.get("rating") or 0,
+        "body": document.get("body") or "",
+        "displayName": document.get("displayName") or "Wallet Worth member",
+        "createdAt": created.isoformat() if isinstance(created, datetime) else None,
+    }
+    if include_status:
+        row["status"] = document.get("status") or "pending"
+        row["userId"] = document.get("userId")
+    return row
 
 
 def _now() -> datetime:

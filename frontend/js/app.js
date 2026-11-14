@@ -60,7 +60,7 @@ const SORTS = [
   { id: "name", label: "Name" },
 ];
 
-const VIEWS = ["overview", "subscriptions", "activity", "spending", "reminders", "usage"];
+const VIEWS = ["overview", "subscriptions", "activity", "spending", "reminders", "usage", "account", "admin"];
 
 const PAGE = {
   overview: {
@@ -93,6 +93,16 @@ const PAGE = {
     title: "Usage",
     intro: "Mark how often you use each plan. Rarely and never are cancel candidates.",
   },
+  account: {
+    kicker: "Account",
+    title: "Account",
+    intro: "Your login, a review, and account deletion.",
+  },
+  admin: {
+    kicker: "Owner",
+    title: "Growth",
+    intro: "Registration counts from the account database. Times are UTC.",
+  },
 };
 
 const USAGE_RANK = { never: 0, rarely: 1, monthly: 2, weekly: 3, daily: 4 };
@@ -124,10 +134,13 @@ const state = {
   activityQuery: "",
   activityFrom: "",
   activityTo: "",
+  growth: null,
+  ownReview: null,
 };
 
 let toastTimer = 0;
 let reviewRequest = null;
+let growthRequest = null;
 
 function uid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -886,6 +899,147 @@ function renderUsage() {
   return `${savings}<div class="checks">${subs.map(renderUsageCard).join("")}</div>`;
 }
 
+function renderAccount() {
+  const review = state.ownReview;
+  const status = review ? `<p class="fine">Current review is ${escapeHtml(review.status)}. Saving again sends it back to pending.</p>` : "";
+  return `
+    <section class="panel">
+      <h2>Email verification and password reset</h2>
+      <p class="fine">Neither one sends email yet. A forgotten password cannot be recovered from this screen.</p>
+    </section>
+    <section class="panel">
+      <h2>Your review</h2>
+      <p class="fine">One review per account. It is public only after the owner approves it.</p>
+      ${status}
+      <form id="review-form" class="stack-form">
+        <label>Name to show <input id="review-name" maxlength="40" value="${escapeHtml(review ? review.displayName : "")}" placeholder="Wallet Worth member"></label>
+        <label>Stars
+          <select id="review-rating">
+            ${[5, 4, 3, 2, 1].map((star) => `<option value="${star}" ${review && review.rating === star ? "selected" : ""}>${star}</option>`).join("")}
+          </select>
+        </label>
+        <label>Review <textarea id="review-body" maxlength="600" rows="4">${escapeHtml(review ? review.body : "")}</textarea></label>
+        <label class="check-line"><input id="review-consent" type="checkbox" ${review ? "checked" : ""}> The owner may publish this if it is approved.</label>
+        <button class="btn btn-primary" type="submit">Save review</button>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Delete account</h2>
+      <p class="fine">This removes the login, plans, stored charges, and reviews for this account. Type your email to confirm.</p>
+      <form id="delete-account-form" class="stack-form">
+        <label>Email <input id="delete-email" type="email" autocomplete="off"></label>
+        <button class="btn btn-danger" type="submit">Delete account</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderAdmin() {
+  if (!state.user || !state.user.admin) {
+    return emptyBlock("Admins only", "Growth counts are not available on this login.");
+  }
+  if (!state.growth) {
+    if (!growthRequest) growthRequest = loadGrowth().finally(() => { growthRequest = null; });
+    return `<p class="fine">Loading registration counts…</p>`;
+  }
+  const report = state.growth;
+  const reached = report.milestones.filter((item) => item.reached);
+  const bars = report.daily.slice(-30);
+  const max = Math.max(...bars.map((item) => item.count), 1);
+  const chart = bars.map((item) => {
+    const height = Math.round((item.count / max) * 80);
+    return `<div class="bar-col" title="${escapeHtml(item.date)}: ${item.count}"><span style="height:${height}px"></span></div>`;
+  }).join("");
+  const sources = report.sources.length
+    ? report.sources.map((row) => `<li><span>${escapeHtml(row.source)}</span><b>${row.eligible} eligible / ${row.registrations} accounts</b></li>`).join("")
+    : "<li>No accounts yet.</li>";
+  const milestones = report.milestones.map((item) => {
+    const when = item.reached ? (item.reachedAt ? item.reachedAt.slice(0, 10) : "date not recorded") : "not reached";
+    return `<li>${item.goal}: ${escapeHtml(when)}</li>`;
+  }).join("");
+  const accounts = (report.accounts || []).slice(0, 30).map((account) => `
+    <li class="admin-account">
+      <span>${escapeHtml(account.email)} · ${escapeHtml(account.source)} · ${account.eligible ? "eligible" : "excluded"}</span>
+      <button type="button" data-action="set-exclusion" data-id="${escapeHtml(account.id)}" data-excluded="${account.manualExclusion ? "false" : "true"}">${account.manualExclusion ? "Include" : "Exclude"}</button>
+    </li>`).join("");
+  const reviews = (state.adminReviews || []).map((review) => `
+    <li class="admin-account">
+      <span>${escapeHtml(review.displayName)} · ${review.rating}/5 · ${escapeHtml(review.status)} · ${escapeHtml(review.body)}</span>
+      <span>
+        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="approved">Approve</button>
+        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="rejected">Reject</button>
+        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="delete">Remove</button>
+      </span>
+    </li>`).join("");
+  const messages = (state.adminMessages || []).map((message) => `
+    <li><strong>${escapeHtml(message.topic)}</strong> · ${escapeHtml(message.name)} · ${escapeHtml(message.email)}<br>${escapeHtml(message.body)}</li>
+  `).join("");
+  const celebration = report.eligible >= report.goal
+    ? `<p class="banner">The 200 eligible-account goal is met${report.goalReachedAt ? ` as of ${escapeHtml(report.goalReachedAt.slice(0, 10))}` : ""}.</p>`
+    : "";
+  return `
+    ${celebration}
+    <section class="stats">
+      <article class="stat"><span>Eligible toward goal</span><strong>${report.eligible} / ${report.goal}</strong><em>${report.percent}% · ${report.remaining} remaining</em></article>
+      <article class="stat"><span>All accounts</span><strong>${report.total}</strong><em>${report.excluded} excluded</em></article>
+      <article class="stat"><span>Verified email</span><strong>${report.verified}</strong><em>Verification email is not offered</em></article>
+      <article class="stat"><span>Active in 30 days</span><strong>${report.active30}</strong><em>Opened a session</em></article>
+    </section>
+    <div class="goal-track" aria-hidden="true"><span style="width:${Math.min(report.percent, 100)}%"></span></div>
+    <p class="fine">${escapeHtml(report.methodology)}</p>
+    <section class="panel">
+      <h2>New eligible registrations</h2>
+      <p class="fine">Today ${report.today} · last 7 days ${report.week} · this month ${report.month}. Visitor counts are not collected, so there is no conversion rate.</p>
+      <div class="mini-chart">${chart}</div>
+    </section>
+    <section class="panel">
+      <h2>Sources</h2>
+      <ul class="plain-list">${sources}</ul>
+      <p class="fine">Campaigns: ${report.campaigns.length ? report.campaigns.map((item) => `${escapeHtml(item.campaign)} (${item.eligible})`).join(", ") : "none recorded"}.</p>
+    </section>
+    <section class="panel">
+      <h2>Milestones</h2>
+      <ul class="plain-list">${milestones}</ul>
+      <p class="fine">${reached.length ? "" : "No milestone date is invented."} Accounts without a registration time are counted, but they do not invent a calendar day.</p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Accounts</h2><a href="/api/admin/export.csv">Download anonymous CSV</a></div>
+      <ul class="plain-list">${accounts || "<li>No accounts.</li>"}</ul>
+    </section>
+    <section class="panel">
+      <h2>Reviews</h2>
+      <ul class="plain-list">${reviews || "<li>No reviews submitted.</li>"}</ul>
+    </section>
+    <section class="panel">
+      <h2>Messages</h2>
+      <ul class="plain-list">${messages || "<li>No messages saved.</li>"}</ul>
+    </section>
+  `;
+}
+
+async function loadGrowth() {
+  try {
+    state.growth = await request("GET", "/api/admin/growth");
+    state.adminReviews = await request("GET", "/api/admin/reviews");
+    state.adminMessages = await request("GET", "/api/admin/messages");
+  } catch (error) {
+    state.growth = { error: error.message, eligible: 0, goal: 200, percent: 0, remaining: 200, total: 0, excluded: 0, verified: 0, active30: 0, methodology: error.message, daily: [], sources: [], campaigns: [], milestones: [], accounts: [] };
+    state.adminReviews = [];
+    state.adminMessages = [];
+  }
+  if (state.view === "admin") render({ keepScroll: true });
+}
+
+async function loadOwnReview() {
+  ownReviewLoaded = true;
+  try {
+    state.ownReview = await request("GET", "/api/account/review");
+  } catch (error) {
+    state.ownReview = null;
+  }
+  if (state.view === "account") render({ keepScroll: true });
+}
+
 const renderers = {
   overview: renderOverview,
   subscriptions: renderSubscriptions,
@@ -893,6 +1047,8 @@ const renderers = {
   reminders: renderReminders,
   usage: renderUsage,
   activity: renderActivity,
+  account: renderAccount,
+  admin: renderAdmin,
 };
 
 function setBadge(id, count) {
@@ -903,6 +1059,10 @@ function setBadge(id, count) {
 
 function render(options = {}) {
   const scrollY = window.scrollY;
+  const adminNav = document.getElementById("admin-nav");
+  if (adminNav) adminNav.hidden = !(state.user && state.user.admin);
+  const robots = document.querySelector('meta[name="robots"]');
+  if (robots) robots.setAttribute("content", state.view === "admin" ? "noindex, nofollow" : "index, follow");
   document.querySelectorAll(".nav-btn").forEach((button) => {
     const active = button.dataset.view === state.view;
     button.classList.toggle("is-active", active);
@@ -921,6 +1081,7 @@ function render(options = {}) {
     window.scrollTo(0, 0);
     return;
   }
+  if (state.view === "account" && !ownReviewLoaded) loadOwnReview();
   document.getElementById("view").innerHTML = renderers[state.view]();
   document.title = `${page.title} · Wallet Worth`;
   window.scrollTo(0, options.keepScroll ? scrollY : 0);
@@ -1207,6 +1368,7 @@ function downloadJson() {
 }
 
 function viewFromHash() {
+  if (window.location.pathname === "/admin/analytics" && state.user && state.user.admin) return "admin";
   const name = location.hash.replace(/^#/, "");
   return VIEWS.includes(name) ? name : "overview";
 }
@@ -1241,6 +1403,8 @@ function onClick(event) {
   else if (action === "keep-merchant") decideMerchant(target.dataset.key, "keep");
   else if (action === "dismiss-merchant") decideMerchant(target.dataset.key, "dismiss");
   else if (action === "logout") logout();
+  else if (action === "set-exclusion") setExclusion(target.dataset.id, target.dataset.excluded === "true");
+  else if (action === "moderate-review") moderateReview(target.dataset.id, target.dataset.status);
 }
 
 function onInput(event) {
@@ -1280,9 +1444,20 @@ function onChange(event) {
 }
 
 function onSubmit(event) {
-  if (event.target.id !== "sub-form") return;
-  event.preventDefault();
-  saveForm();
+  if (event.target.id === "sub-form") {
+    event.preventDefault();
+    saveForm();
+    return;
+  }
+  if (event.target.id === "review-form") {
+    event.preventDefault();
+    saveReview();
+    return;
+  }
+  if (event.target.id === "delete-account-form") {
+    event.preventDefault();
+    deleteAccount();
+  }
 }
 
 function bind() {
@@ -1300,6 +1475,7 @@ function bind() {
     state.confirm = null;
   });
   window.addEventListener("hashchange", () => {
+    if (document.body.classList.contains("is-signed-out")) return;
     state.view = viewFromHash();
     render();
   });
@@ -1346,13 +1522,14 @@ async function onAuth(event) {
   submit.disabled = true;
   try {
     const path = authMode === "register" ? "/api/register" : "/api/login";
-    const body = authMode === "register" ? { email, password, confirm } : { email, password };
+    const body = authMode === "register" ? { email, password, confirm, acquisition: readAttribution() } : { email, password };
     if (authMode === "register" && confirm !== password) {
       throw new Error("Type the same password again.");
     }
     const user = await request("POST", path, body);
-    state.user = { email: user.email };
+    state.user = { email: user.email, admin: Boolean(user.admin) };
     const session = await request("GET", "/api/session");
+    state.user.admin = Boolean(session.user && session.user.admin);
     state.bank = session.bank || { linked: false, institutions: [] };
     await enterApp();
   } catch (error) {
@@ -1502,8 +1679,72 @@ async function logout() {
   }
   state.subscriptions = [];
   state.activity = null;
+  state.growth = null;
+  state.ownReview = null;
+  ownReviewLoaded = false;
   state.bank = { linked: false, institutions: [], sandbox: false };
   showGate();
+}
+
+function readAttribution() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("ww-attribution") || "null");
+    if (saved && saved.source) return saved;
+  } catch (error) {
+    return { source: "direct", medium: "", campaign: "", content: "", term: "" };
+  }
+  return { source: "direct", medium: "", campaign: "", content: "", term: "" };
+}
+
+let ownReviewLoaded = false;
+
+async function saveReview() {
+  const consent = document.getElementById("review-consent").checked;
+  try {
+    state.ownReview = await request("POST", "/api/reviews", {
+      rating: Number(document.getElementById("review-rating").value),
+      body: document.getElementById("review-body").value,
+      displayName: document.getElementById("review-name").value,
+      consent,
+    });
+    toast("Saved. It stays private until it is approved.");
+    render({ keepScroll: true });
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function deleteAccount() {
+  const email = document.getElementById("delete-email").value.trim();
+  try {
+    await request("POST", "/api/account/delete", { email });
+    state.subscriptions = [];
+    state.user = null;
+    showGate();
+    toast("The account was deleted.");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function setExclusion(id, excluded) {
+  try {
+    await request("POST", `/api/admin/users/${id}/exclusion`, { excluded });
+    state.growth = null;
+    await loadGrowth();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function moderateReview(id, status) {
+  try {
+    await request("POST", `/api/admin/reviews/${id}`, { status });
+    state.growth = null;
+    await loadGrowth();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function init() {
