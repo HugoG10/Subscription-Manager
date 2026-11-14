@@ -1,5 +1,6 @@
 .venv
 .env
+.env*
 .git
 .idea
 __pycache__

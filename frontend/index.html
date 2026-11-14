@@ -3,20 +3,354 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wallet Worth</title>
-  <meta name="description" content="Track subscription costs, renewals, trials, and the plans you no longer use.">
+  <title>Wallet Worth — Subscription tracker</title>
+  <meta name="description" content="Wallet Worth tracks the subscriptions you pay for, shows the monthly total, and lists renewals before they happen.">
+  <meta name="robots" content="index, follow">
+  <meta property="og:title" content="Wallet Worth">
+  <meta property="og:description" content="Organize subscriptions, see what they cost, and notice renewals before they happen.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://subscription-manager-mu-one.vercel.app/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23de3341'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Inter,sans-serif' font-size='16' font-weight='600' fill='white'%3EW%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="css/styles.css?v=6">
+  <link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 <body class="is-signed-out">
   <a class="skip" href="#view">Skip to content</a>
+  <div id="site">
+    <header class="site-bar">
+      <div class="site-wrap site-bar-inner">
+        <a class="brand" href="/">
+          <span class="mark" aria-hidden="true">W</span>
+          <span class="brand-name">Wallet Worth</span>
+        </a>
+        <nav class="site-links" aria-label="Site">
+          <a href="/#demo">Demo</a>
+          <a href="/features">Features</a>
+          <a href="/about">About</a>
+          <a href="/faq">FAQ</a>
+          <a href="/contact">Contact</a>
+          <a class="btn btn-primary" href="/#signin">Get started</a>
+        </nav>
+      </div>
+    </header>
+    <main id="public-main" class="site-wrap">
+      <section data-public-page="home">
+        <div class="site-hero">
+          <div class="hero-copy">
+            <p class="site-kicker">Subscription tracker</p>
+            <h1>Your subscriptions. Your money. Your control.</h1>
+            <p class="intro">Take control of your recurring expenses with Wallet Worth. Track subscriptions, understand your spending, and stay ahead of upcoming renewals — all in one place.</p>
+            <p class="site-actions">
+              <a class="btn btn-primary" href="/#signin">Get started — free <span class="btn-arrow" aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost" href="#demo">Try interactive demo <span class="btn-arrow" aria-hidden="true">→</span></a>
+            </p>
+            <p class="fine">Creating an account does not start a charge. There is no paid plan in the app today.</p>
+            <p class="fine" id="milestone-note" hidden></p>
+          </div>
+          <div class="preview" aria-hidden="true">
+            <div class="preview-bar"><span></span><span></span><span></span><strong>Sample overview</strong></div>
+            <div class="preview-stats">
+              <p><span>Per month</span><strong>$41.47</strong></p>
+              <p><span>Per year</span><strong>$497.64</strong></p>
+              <p class="is-alert"><span>Reminders</span><strong>2</strong></p>
+            </div>
+            <ul class="preview-list">
+              <li><i style="background:#de3341"></i><span>YouTube Premium<small>Renews in 3 days</small></span><b>$13.99</b></li>
+              <li><i style="background:#de3341"></i><span>Netflix<small>Renews in 6 days</small></span><b>$15.49</b></li>
+              <li><i style="background:#5b3c9c"></i><span>Spotify<small>Renews in 12 days</small></span><b>$11.99</b></li>
+            </ul>
+            <div class="preview-meter" title="Sample monthly total by category">
+              <span style="width:71%"></span>
+              <span style="width:29%; background:#5b3c9c"></span>
+            </div>
+            <p class="preview-float">2 renewals inside 7 days</p>
+          </div>
+        </div>
+
+        <section class="site-block" id="demo">
+          <div class="demo-intro">
+            <div>
+              <p class="site-kicker">Try Wallet Worth</p>
+              <h2>Change the list. Watch the total move.</h2>
+              <p class="intro">These are sample plans in this browser. Pausing one removes it from the monthly total, the same way the signed-in app treats a paused plan. Nothing is saved and no account is used.</p>
+            </div>
+            <button class="btn btn-ghost" type="button" id="demo-reset">Reset sample</button>
+          </div>
+          <div class="demo-shell">
+            <div class="panel demo-list">
+              <div class="panel-head"><h2>Sample plans</h2><span id="demo-count"></span></div>
+              <div id="demo-plans"></div>
+              <form id="demo-add" class="demo-add">
+                <label>Name <input name="name" type="text" maxlength="40" placeholder="YouTube Premium" required></label>
+                <label>Monthly price <input name="cost" type="number" min="0.01" max="9999" step="0.01" placeholder="13.99" required></label>
+                <label>Category
+                  <select name="category">
+                    <option value="streaming">Streaming</option>
+                    <option value="music">Music</option>
+                    <option value="software">Software</option>
+                    <option value="cloud">Cloud</option>
+                    <option value="news">News</option>
+                    <option value="fitness">Fitness</option>
+                    <option value="gaming">Gaming</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <button class="btn btn-primary" type="submit">Add to demo</button>
+                <p class="form-error" id="demo-error" hidden></p>
+              </form>
+            </div>
+            <div class="demo-side">
+              <div class="stats demo-stats">
+                <article class="stat"><span>Per month</span><strong id="demo-month">$0.00</strong><em>Active plans</em></article>
+                <article class="stat"><span>Per year</span><strong id="demo-year">$0.00</strong><em>Those plans, annualized</em></article>
+                <article class="stat" id="demo-reminder-card"><span>Reminders</span><strong id="demo-reminders">0</strong><em>Inside 7 days</em></article>
+              </div>
+              <section class="panel">
+                <div class="panel-head"><h2>Coming up</h2><span>Next renewals</span></div>
+                <div id="demo-upcoming"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head"><h2>Where the money goes</h2><span>Active plans</span></div>
+                <div id="demo-bars"></div>
+              </section>
+            </div>
+          </div>
+          <p class="fine" id="demo-live" aria-live="polite"></p>
+        </section>
+
+        <section class="site-block reveal">
+          <h2>What you can do with an account</h2>
+          <div class="site-grid">
+            <article><h3>Keep a list</h3><p>Add plans by hand, with a price, billing cycle, category, and renewal date.</p></article>
+            <article><h3>See the total</h3><p>Monthly and yearly totals skip paused and canceled plans. Trials stay separate.</p></article>
+            <article><h3>Get reminders</h3><p>A plan shows up in the app when its renewal is inside the number of days you chose. Wallet Worth does not send email or text reminders.</p></article>
+            <article><h3>Bring in charges</h3><p>Upload a CSV statement, or connect a bank through Plaid. You mark which charges are subscriptions. The app does not cancel them.</p></article>
+          </div>
+        </section>
+        <section class="site-block reveal" id="how">
+          <h2>How it works</h2>
+          <div class="steps-layout">
+            <div class="step-list" role="tablist" aria-label="How Wallet Worth works">
+              <button class="step" type="button" role="tab" id="step-tab-1" aria-controls="step-panel-1" aria-selected="true" data-step="1">
+                <span>1</span>
+                <strong>Create an account.</strong>
+                <small>Your list is private to that login. The demo above is not saved.</small>
+              </button>
+              <button class="step" type="button" role="tab" id="step-tab-2" aria-controls="step-panel-2" aria-selected="false" data-step="2">
+                <span>2</span>
+                <strong>Add subscriptions.</strong>
+                <small>Type them in, upload a statement, or review bank charges.</small>
+              </button>
+              <button class="step" type="button" role="tab" id="step-tab-3" aria-controls="step-panel-3" aria-selected="false" data-step="3">
+                <span>3</span>
+                <strong>Watch renewals and spending.</strong>
+                <small>The overview, reminders, and usage pages use the plans you saved.</small>
+              </button>
+            </div>
+            <div class="step-stage">
+              <div class="step-panel" id="step-panel-1" role="tabpanel" aria-labelledby="step-tab-1">
+                <p class="site-kicker">Account</p>
+                <p>An account starts empty. Only that login can see the plans you add.</p>
+              </div>
+              <div class="step-panel" id="step-panel-2" role="tabpanel" aria-labelledby="step-tab-2" hidden>
+                <p class="site-kicker">A plan</p>
+                <p class="step-row"><i style="background:#de3341"></i><span>Netflix</span><b>$15.49/mo</b></p>
+                <p>You can type a plan, upload a CSV, or mark bank charges. The app does not cancel them.</p>
+              </div>
+              <div class="step-panel" id="step-panel-3" role="tabpanel" aria-labelledby="step-tab-3" hidden>
+                <p class="site-kicker">Overview</p>
+                <p class="step-total">$41.47<span> per month in this sample</span></p>
+                <p>Reminders show inside the app when a renewal is close. They are not emails.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="site-block signin-block reveal" id="signin">
+          <div>
+            <p class="site-kicker">Your own list</p>
+            <h2>Start with an empty account.</h2>
+            <p class="intro">The sample plans stay on this page. An account starts blank, and only you can see what you add.</p>
+          </div>
+          <div id="gate-mount"></div>
+        </section>
+        <section class="site-block reveal" id="review-preview">
+          <h2>Reviews</h2>
+          <div id="public-reviews"><p class="fine">No approved reviews yet.</p></div>
+        </section>
+        <section class="site-block reveal">
+          <h2>Questions</h2>
+          <div class="faq-list">
+            <details><summary>Does Wallet Worth cancel subscriptions for me?</summary><p>No. It tracks them. You cancel with the company that bills you.</p></details>
+            <details><summary>Do I have to connect a bank?</summary><p>No. You can add every plan yourself. Bank linking and CSV upload are optional.</p></details>
+            <details><summary>Is there a fee?</summary><p>There is no paid plan in the app today. Creating an account does not start a charge.</p></details>
+          </div>
+          <p><a href="/faq">Read the full FAQ</a></p>
+        </section>
+        <section class="closing reveal">
+          <h2>Put the recurring charges in one place.</h2>
+          <p>Create an account and add the plans you already pay for.</p>
+          <a class="btn btn-primary" href="/#signin">Get started — free <span class="btn-arrow" aria-hidden="true">→</span></a>
+        </section>
+      </section>
+      <section data-public-page="features" hidden>
+        <h1>Features</h1>
+        <p class="intro">These are the tools in the signed-in app today.</p>
+        <div class="site-grid">
+          <article><h3>Overview</h3><p>Monthly and yearly totals, upcoming renewals, and spending by category.</p></article>
+          <article><h3>Subscriptions</h3><p>Search, filter, edit, export, or remove plans. Sample plans can be loaded for a demo.</p></article>
+          <article><h3>Activity</h3><p>Group bank or statement charges by merchant, filter by date, and mark what is a subscription.</p></article>
+          <article><h3>Reminders and usage</h3><p>Set a reminder window and rate how often you use a plan.</p></article>
+        </div>
+      </section>
+      <section data-public-page="about" hidden>
+        <h1>About Wallet Worth</h1>
+        <p class="intro">Wallet Worth is an independent subscription tracker. It is not a bank, and it is not a company with a staff or investors behind this page.</p>
+        <p>Recurring charges are easy to forget because they are small and automatic. Wallet Worth is a place to write them down, see the monthly equivalent, and notice the date before the next charge.</p>
+        <p>You can type plans in yourself. If you want, you can upload a CSV statement or connect a US bank account through Plaid so charges can be reviewed and recurring ones suggested. The app does not move money and does not cancel plans.</p>
+        <p>The project is still early. Email verification and password reset by email are not built yet.</p>
+        <p><a class="btn btn-primary" href="/#signin">Create an account</a></p>
+      </section>
+      <section data-public-page="faq" hidden>
+        <h1>FAQ</h1>
+        <div class="faq-list" id="faq-all">
+          <details><summary>What is Wallet Worth?</summary><p>A private account where you track subscriptions, their cost, and their next renewal date.</p></details>
+          <details><summary>Is Wallet Worth free?</summary><p>There is no price in the app today. That is a description of the current build, not a promise that it will never charge.</p></details>
+          <details><summary>How does Wallet Worth work?</summary><p>You create an account, add plans, and the dashboard totals the active ones and lists renewals that fall inside your reminder window.</p></details>
+          <details><summary>Can I manage multiple subscriptions?</summary><p>Yes. The list holds as many plans as you add.</p></details>
+          <details><summary>Can I manually add subscriptions?</summary><p>Yes. Use Add subscription. You can also load a sample set.</p></details>
+          <details><summary>Does Wallet Worth automatically cancel subscriptions?</summary><p>No.</p></details>
+          <details><summary>Can I receive renewal reminders?</summary><p>The app shows reminders when you are signed in. It does not send email or text reminders.</p></details>
+          <details><summary>Is my personal information secure?</summary><p>Passwords are hashed. Bank access tokens are encrypted before they are stored. This page does not claim a certification or a specific security standard.</p></details>
+          <details><summary>Do I need to connect my bank account?</summary><p>No.</p></details>
+          <details><summary>How does Plaid work with Wallet Worth?</summary><p>If you choose Connect your bank, Plaid handles the bank sign-in. Wallet Worth receives an access token and can read posted transactions to suggest recurring charges. It does not receive your bank password.</p></details>
+          <details><summary>Can I edit or remove subscriptions?</summary><p>Yes. Each plan has Edit and Remove. Remove all clears the list for that account.</p></details>
+          <details><summary>Can I delete my account?</summary><p>Yes, from Account after you sign in. That deletes the login, plans, reviews, and stored charges for that account.</p></details>
+          <details><summary>How do I report a bug?</summary><p>Use the contact form and choose Bug. The message is saved for the owner. It is not emailed automatically.</p></details>
+          <details><summary>How can I contact support?</summary><p>Use the contact form. There is no separate support inbox published here.</p></details>
+        </div>
+      </section>
+      <section data-public-page="terms" hidden>
+        <p class="draft-banner">Draft for review. These terms are not in effect until the owner sets an approved effective date.</p>
+        <h1>Terms of Service</h1>
+        <p class="fine">Effective date: not yet approved.</p>
+        <h2>1. Acceptance of Terms</h2>
+        <p>Creating an account means you agree to the terms that are in effect on that date. This draft is not that agreement yet.</p>
+        <h2>2. Description of Wallet Worth</h2>
+        <p>Wallet Worth is a subscription tracking app. It lists plans, estimates monthly and yearly cost, and shows renewal reminders inside the app. It is not a bank, lender, or money transmitter.</p>
+        <h2>3. Eligibility and Account Registration</h2>
+        <p>You need an email and a password that meets the rules on the sign-up form. One person should use one account. Email verification is not available yet.</p>
+        <h2>4. User Responsibilities</h2>
+        <p>You are responsible for the plans you enter and for checking amounts against your own statements. Reminders appear only while you use the app.</p>
+        <h2>5. Acceptable Use</h2>
+        <p>Do not use the app to break the law, probe other people's accounts, or overload the service.</p>
+        <h2>6. Subscription Tracking Functionality</h2>
+        <p>Totals are calculated from the price and cycle you save, or from charges the app groups as recurring. They can be wrong if a charge was mislabeled or a price changed.</p>
+        <h2>7. Financial Information Disclaimer</h2>
+        <p>Wallet Worth does not give financial, tax, or investment advice. It does not pay or cancel bills.</p>
+        <h2>8. Third-Party Services and Integrations</h2>
+        <p>Optional bank linking uses Plaid. Plaid's own terms apply to that connection. MongoDB Atlas stores the app's data. Hosting is on Vercel for the public site.</p>
+        <h2>9. Account Suspension and Termination</h2>
+        <p>You can delete your account. The owner may disable an account that abuses the service. There is no published appeals desk yet.</p>
+        <h2>10. Intellectual Property</h2>
+        <p>The Wallet Worth name, interface, and code are owned by the person who publishes this project. Your subscription data stays yours.</p>
+        <h2>11. Service Availability</h2>
+        <p>The app can be unavailable during deploys, database outages, or Plaid outages. There is no uptime guarantee in this draft.</p>
+        <h2>12. Limitations of Liability</h2>
+        <p>This draft does not set a damages cap or a governing law. The owner needs to add those with a lawyer before publication.</p>
+        <h2>13. Changes to Terms</h2>
+        <p>When terms are approved, later changes should be dated on this page. Continued use after that date is the intended acceptance, but that sentence is not in effect yet.</p>
+        <h2>14. Contact Information</h2>
+        <p>Use the contact form. A legal entity name, mailing address, and governing jurisdiction are not published because they have not been provided.</p>
+      </section>
+      <section data-public-page="privacy" hidden>
+        <p class="draft-banner">Draft for review. This policy describes the current code. It is not a lawyer-approved policy and has no effective date yet.</p>
+        <h1>Privacy Policy</h1>
+        <p class="fine">Effective date: not yet approved.</p>
+        <h2>Information collected at registration</h2>
+        <p>Email address, a hashed password, the time the account was created, and an optional note of the link that led you to sign up (source, medium, and campaign). The app does not verify that the email inbox is yours.</p>
+        <h2>Account information stored</h2>
+        <p>The account id, email, password hash, last time the session was opened, whether an administrator marked the account as a test account, and a review if you submit one.</p>
+        <h2>Subscription information</h2>
+        <p>Name, category, price, billing cycle, renewal date, status, reminder window, usage rating, last-used date, and notes you type.</p>
+        <h2>Financial information</h2>
+        <p>If you upload a CSV, the app stores the posted date, amount, and description of charges it could parse. If you connect a bank, it stores an encrypted Plaid access token, the institution name, and posted transaction dates, amounts, and descriptions used to find recurring charges. It does not store your bank password.</p>
+        <h2>How information is used</h2>
+        <p>To show your own dashboard, detect possible subscriptions, and, for the owner, to count registrations. Registration counts treat example.com addresses as test accounts.</p>
+        <h2>Authentication</h2>
+        <p>Passwords are hashed with scrypt. The session cookie is HttpOnly. There is no password-reset email.</p>
+        <h2>Plaid</h2>
+        <p>Plaid is optional. In production the app requests transaction history. Plaid, not Wallet Worth, collects the bank login. Disconnect removes the item at Plaid when that call succeeds, then deletes the imported bank charges stored here. Statement uploads are kept until you delete the account or remove those plans.</p>
+        <h2>Analytics</h2>
+        <p>The owner can see registration totals. The app does not run a visitor analytics product and does not use cross-site fingerprinting. A first-touch source is saved in this browser and sent only if you create an account.</p>
+        <h2>Cookies</h2>
+        <p>The session cookie keeps you signed in. Attribution is stored in localStorage under ww-attribution, not in a third-party cookie.</p>
+        <h2>Retention and deletion</h2>
+        <p>Data stays until you delete the account or the owner removes the database. Delete account removes the user, subscriptions, charges, bank items, dismissals, and reviews stored for that id. A Plaid item is revoked when the disconnect call succeeds.</p>
+        <h2>Privacy rights and contact</h2>
+        <p>A formal privacy-rights process, region, and contact address are not set. Use the contact form and choose Account. The owner still needs to name the legal entity and the request process before treating this page as final.</p>
+      </section>
+      <section data-public-page="contact" hidden>
+        <h1>Contact</h1>
+        <p class="intro">Messages are saved for the owner of this app. They are not sent as email, and this page does not show a private inbox.</p>
+        <form id="contact-form" class="contact-form">
+          <label>Name <input name="name" type="text" maxlength="80" required></label>
+          <label>Email <input name="email" type="email" maxlength="254" required></label>
+          <label>Topic
+            <select name="topic" required>
+              <option value="question">General question</option>
+              <option value="bug">Bug</option>
+              <option value="feature">Feature request</option>
+              <option value="feedback">Feedback</option>
+              <option value="account">Account help</option>
+            </select>
+          </label>
+          <label>Message <textarea name="message" rows="5" maxlength="2000" required></textarea></label>
+          <label class="sr-only">Company <input name="company" type="text" tabindex="-1" autocomplete="off"></label>
+          <p class="form-error" id="contact-error" hidden></p>
+          <p class="fine" id="contact-success" hidden>Saved. The owner can read it from the private admin page.</p>
+          <button class="btn btn-primary" type="submit">Send message</button>
+        </form>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="site-wrap site-footer-grid">
+        <div class="site-col site-col-brand">
+          <p class="brand-name">Wallet Worth</p>
+          <p class="fine">A private subscription list with spending totals and renewal reminders.</p>
+        </div>
+        <div class="site-col">
+          <h2>Product</h2>
+          <a href="/features">Features</a>
+          <a href="/#signin">Dashboard</a>
+          <a href="/features">How it works</a>
+          <a href="/faq">FAQ</a>
+        </div>
+        <div class="site-col">
+          <h2>Resources</h2>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/contact">Feedback</a>
+          <a href="/#reviews">Reviews</a>
+        </div>
+        <div class="site-col">
+          <h2>Legal</h2>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy">Privacy Policy</a>
+        </div>
+        <div class="site-col">
+          <h2>Community</h2>
+          <a href="https://github.com/HugoG10/Subscription-Manager">GitHub</a>
+        </div>
+        <p class="fine site-copy">© <span id="copyright-year"></span> Wallet Worth. Independent project.</p>
+      </div>
+    </footer>
+  </div>
   <div class="gate" id="gate">
     <form class="gate-card" id="auth-form">
       <span class="mark" aria-hidden="true">W</span>
-      <h1>Wallet Worth</h1>
+      <p class="gate-title">Wallet Worth</p>
       <p class="intro" id="auth-copy">Sign in to see the subscriptions found from your bank.</p>
       <label>
         Email
@@ -26,6 +360,21 @@
         Password
         <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required>
       </label>
+      <label id="confirm-label" hidden>
+        Confirm password
+        <input id="auth-confirm" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128">
+      </label>
+      <div id="password-meter" class="password-meter" hidden>
+        <div class="password-track" aria-hidden="true"><span id="password-fill"></span></div>
+        <p id="password-label" aria-live="polite">Password strength</p>
+        <ul class="password-checks" id="password-checks">
+          <li data-check="length">At least 10 characters</li>
+          <li data-check="letter">A letter</li>
+          <li data-check="mix">A number or a symbol</li>
+          <li data-check="email">Not your email</li>
+          <li data-check="common">Not a common password</li>
+        </ul>
+      </div>
       <p class="form-error" id="auth-error" hidden></p>
       <button class="btn btn-primary" id="auth-submit" type="submit">Sign in</button>
       <button class="btn btn-ghost" id="auth-switch" type="button">Create an account</button>
@@ -53,10 +402,12 @@
           Usage
           <span class="badge" id="usage-badge" hidden>0</span>
         </button>
+        <button class="nav-btn" id="admin-nav" type="button" data-action="navigate" data-view="admin" hidden>Growth</button>
       </nav>
       <div class="rail-account">
         <p id="account-email"></p>
         <button type="button" data-action="sync-bank" id="sync-bank" hidden>Sync bank</button>
+        <button type="button" data-action="navigate" data-view="account">Account</button>
         <button type="button" data-action="logout">Log out</button>
       </div>
     </aside>
@@ -153,6 +504,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/public.js?v=4"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

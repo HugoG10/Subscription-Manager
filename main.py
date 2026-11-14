@@ -11,6 +11,9 @@ Open http://127.0.0.1:8000
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
 import json
 import os
 import re
@@ -19,7 +22,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, Response, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from bank import (
@@ -32,6 +35,7 @@ from bank import (
     subscription_from_merchant,
     without_dismissed,
 )
+from growth import build_report, clean_acquisition, export_rows
 from model import ValidationError, subscription_from_payload, summarize
 from plaid_link import (
     BankLinkUnavailable,
@@ -48,7 +52,7 @@ from plaid_link import (
     sync_charges,
     verify_webhook,
 )
-from store import DEFAULT_DATABASE, DEFAULT_URI, SubscriptionStore
+from store import DEFAULT_DATABASE, DEFAULT_URI, SubscriptionStore, _now
 from vault import decrypt, encrypt
 
 ROOT = Path(__file__).resolve().parent
@@ -56,6 +60,8 @@ FRONTEND = ROOT / "frontend"
 ID_MAX_LENGTH = 64
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PUBLIC_API = {"/api/session", "/api/login", "/api/register", "/api/plaid/webhook"}
+PUBLIC_PAGES = ("about", "faq", "terms", "privacy", "contact", "features")
+CANONICAL_ORIGIN = "https://subscription-manager-mu-one.vercel.app"
 PLAID_SYNC_CODES = {
     "SYNC_UPDATES_AVAILABLE",
     "RECURRING_TRANSACTIONS_UPDATE",
@@ -162,6 +168,12 @@ def create_app(
             return None
         if _cross_site():
             return jsonify({"errors": ["That request was rejected."]}), 403
+        if request.path == "/api/reviews" and request.method == "GET":
+            return None
+        if request.path == "/api/milestone" and request.method == "GET":
+            return None
+        if request.path == "/api/contact" and request.method == "POST":
+            return None
         if not request.path.startswith("/api/") or request.path in PUBLIC_API:
             return None
         user = _current_user()
@@ -185,15 +197,54 @@ def create_app(
     def favicon():
         return "", 204
 
+    @app.get("/robots.txt")
+    def robots():
+        origin = _origin()
+        body = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /api/\n"
+            "Disallow: /admin/\n"
+            f"Sitemap: {origin}/sitemap.xml\n"
+        )
+        return Response(body, mimetype="text/plain")
+
+    @app.get("/sitemap.xml")
+    def sitemap():
+        origin = _origin()
+        paths = ["", "/about", "/features", "/faq", "/terms", "/privacy", "/contact"]
+        urls = "\n".join(
+            f"  <url><loc>{origin}{path}</loc></url>" for path in paths
+        )
+        body = (
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n"
+            f"{urls}\n</urlset>\n"
+        )
+        return Response(body, mimetype="application/xml")
+
+    @app.get("/admin/analytics")
+    def admin_page():
+        response = send_from_directory(FRONTEND, "index.html")
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
+
+    @app.get("/<page>")
+    def public_page(page: str):
+        if page not in PUBLIC_PAGES:
+            return jsonify({"errors": ["That page was not found."]}), 404
+        return send_from_directory(FRONTEND, "index.html")
+
     @app.get("/api/session")
     def current_session():
         user = _current_user()
         if user is None:
-            return jsonify({"user": None, "bank": {"linked": False, "institutions": []}})
+            return jsonify({"user": None, "bank": {"linked": False, "institutions": []}, "admin": False})
+        store.touch_seen(user["id"])
         items = store.list_bank_items(user["id"])
         return jsonify(
             {
-                "user": {"email": user["email"]},
+                "user": {"email": user["email"], "admin": _is_admin(user)},
                 "bank": {
                     "linked": bool(items),
                     "institutions": [item["institution"] for item in items],
@@ -209,15 +260,22 @@ def create_app(
         password = payload.get("password")
         if email is None:
             return jsonify({"errors": ["Enter a valid email."]}), 400
-        if store.login_is_limited(email):
+        if _auth_is_limited(email):
             return jsonify({"errors": ["Too many attempts. Try again in a few minutes."]}), 429
         problem = _password_error(password, email)
         if problem:
             return jsonify({"errors": [problem]}), 400
-        user = store.create_user(email, generate_password_hash(password, method="scrypt"))
+        confirm = payload.get("confirm")
+        if not isinstance(confirm, str) or confirm != password:
+            return jsonify({"errors": ["Type the same password again."]}), 400
+        user = store.create_user(
+            email,
+            generate_password_hash(password, method="scrypt"),
+            acquisition=clean_acquisition(payload.get("acquisition")),
+        )
         if user is None:
-            store.record_login_failure(email)
-            return jsonify({"errors": ["An account with that email already exists."]}), 400
+            _note_auth_failure(email)
+            return jsonify({"errors": ["Email or password is incorrect."]}), 401
         _start_session(user["id"])
         return jsonify({"email": user["email"]}), 201
 
@@ -228,23 +286,175 @@ def create_app(
         password = payload.get("password")
         if not isinstance(password, str):
             password = ""
-        if email and store.login_is_limited(email):
+        if _auth_is_limited(email):
             check_password_hash(DUMMY_HASH, password)
             return jsonify({"errors": ["Too many attempts. Try again in a few minutes."]}), 429
         user = store.get_user_by_email(email) if email else None
         password_hash = user["passwordHash"] if user else DUMMY_HASH
         if user is None or not check_password_hash(password_hash, password):
-            if email:
-                store.record_login_failure(email)
+            _note_auth_failure(email)
             return jsonify({"errors": ["Email or password is incorrect."]}), 401
         store.clear_login_failures(email)
+        store.touch_seen(user["id"])
         _start_session(user["id"])
-        return jsonify({"email": user["email"]})
+        return jsonify({"email": user["email"], "admin": _is_admin(user)})
 
     @app.post("/api/logout")
     def logout():
         session.clear()
         return jsonify({"ok": True})
+
+    @app.get("/api/milestone")
+    def milestone():
+        enabled = os.environ.get("PUBLIC_MILESTONE", "").strip().lower() in {"1", "true", "yes"}
+        if not enabled:
+            return jsonify({"visible": False})
+        report = build_report(store.growth_documents(), _now())
+        if report["eligible"] < 25:
+            return jsonify({"visible": False})
+        return jsonify(
+            {
+                "visible": True,
+                "eligible": report["eligible"],
+                "goal": report["goal"],
+            }
+        )
+
+    @app.get("/api/reviews")
+    def public_reviews():
+        return jsonify(store.public_reviews())
+
+    @app.post("/api/reviews")
+    def submit_review():
+        user = _current_user()
+        if user is None:
+            return jsonify({"errors": ["Sign in to continue."]}), 401
+        payload = request.get_json(silent=True) or {}
+        rating = payload.get("rating")
+        body = payload.get("body")
+        if not isinstance(rating, int) or rating < 1 or rating > 5:
+            return jsonify({"errors": ["Choose a rating from 1 to 5."]}), 400
+        if not isinstance(body, str) or len(body.strip()) < 8 or len(body.strip()) > 600:
+            return jsonify({"errors": ["Write a review between 8 and 600 characters."]}), 400
+        if payload.get("consent") is not True:
+            return jsonify({"errors": ["Confirm that the review can be shown if it is approved."]}), 400
+        name = payload.get("displayName")
+        if not isinstance(name, str) or not name.strip():
+            name = "Wallet Worth member"
+        name = re.sub(r"\s+", " ", name).strip()[:40]
+        saved = store.save_review(user["id"], rating, body.strip(), name)
+        return jsonify(saved)
+
+    @app.get("/api/account/review")
+    def own_review():
+        review = store.review_for_user(session["user_id"])
+        return jsonify(review)
+
+    @app.post("/api/contact")
+    def contact():
+        payload = request.get_json(silent=True) or {}
+        if str(payload.get("company") or "").strip():
+            return jsonify({"ok": True})
+        name = str(payload.get("name") or "").strip()
+        email = _clean_email(payload.get("email"))
+        topic = str(payload.get("topic") or "").strip().lower()
+        body = str(payload.get("message") or "").strip()
+        topics = {"question", "bug", "feature", "feedback", "account"}
+        if len(name) < 2 or len(name) > 80:
+            return jsonify({"errors": ["Enter your name."]}), 400
+        if email is None:
+            return jsonify({"errors": ["Enter a valid email."]}), 400
+        if topic not in topics:
+            return jsonify({"errors": ["Choose what this message is about."]}), 400
+        if len(body) < 8 or len(body) > 2000:
+            return jsonify({"errors": ["Write a message between 8 and 2000 characters."]}), 400
+        ip_hash = _ip_hash()
+        if store.contact_is_limited(ip_hash):
+            return jsonify({"errors": ["Too many messages. Try again later."]}), 429
+        store.save_message(name[:80], email, topic, body, ip_hash)
+        return jsonify({"ok": True, "delivered": "saved"})
+
+    @app.post("/api/account/delete")
+    def delete_account():
+        user = _current_user()
+        if user is None:
+            return jsonify({"errors": ["Sign in to continue."]}), 401
+        payload = request.get_json(silent=True) or {}
+        if str(payload.get("email") or "").strip().lower() != user["email"]:
+            return jsonify({"errors": ["Type your email to confirm deletion."]}), 400
+        user_id = user["id"]
+        for item in store.list_bank_items(user_id):
+            try:
+                remove_item(decrypt(app.secret_key, item["accessToken"]))
+            except Exception:
+                pass
+        store.delete_account(user_id)
+        session.clear()
+        return jsonify({"ok": True})
+
+    @app.get("/api/admin/growth")
+    def admin_growth():
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        report = build_report(store.growth_documents(), _now())
+        report["accounts"] = store.admin_accounts()
+        return jsonify(report)
+
+    @app.get("/api/admin/export.csv")
+    def admin_export():
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        buffer = io.StringIO()
+        writer = csv.DictWriter(
+            buffer,
+            fieldnames=["id", "registeredAt", "emailVerified", "source", "eligible"],
+        )
+        writer.writeheader()
+        writer.writerows(export_rows(store.growth_documents()))
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=wallet-worth-registrations.csv"},
+        )
+
+    @app.post("/api/admin/users/<user_id>/exclusion")
+    def admin_exclusion(user_id: str):
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload.get("excluded"), bool):
+            return jsonify({"errors": ["Say whether the account is excluded."]}), 400
+        if not store.set_excluded(user_id, payload["excluded"]):
+            return jsonify({"errors": ["That account was not found."]}), 404
+        return jsonify({"ok": True})
+
+    @app.get("/api/admin/reviews")
+    def admin_reviews():
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        return jsonify(store.list_reviews())
+
+    @app.post("/api/admin/reviews/<review_id>")
+    def admin_moderate(review_id: str):
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        payload = request.get_json(silent=True) or {}
+        status = payload.get("status")
+        if status == "delete":
+            if not store.delete_review(review_id):
+                return jsonify({"errors": ["That review was not found."]}), 404
+            return jsonify({"ok": True})
+        if status not in {"approved", "rejected", "pending"}:
+            return jsonify({"errors": ["Choose approve, reject, or delete."]}), 400
+        if not store.moderate_review(review_id, status):
+            return jsonify({"errors": ["That review was not found."]}), 404
+        return jsonify({"ok": True})
+
+    @app.get("/api/admin/messages")
+    def admin_messages():
+        if _require_admin() is None:
+            return jsonify({"errors": ["This page is only for an administrator."]}), 403
+        return jsonify(store.list_messages())
 
     @app.post("/api/bank/link-token")
     def bank_link_token():
@@ -479,6 +689,41 @@ def create_app(
             session.clear()
         return user
 
+    def _is_admin(user: dict | None) -> bool:
+        if not user:
+            return False
+        allowed = {
+            item.strip().lower()
+            for item in os.environ.get("ADMIN_EMAILS", "").split(",")
+            if item.strip()
+        }
+        return str(user.get("email") or "").lower() in allowed
+
+    def _require_admin() -> dict | None:
+        user = _current_user()
+        if user is None or not _is_admin(user):
+            return None
+        return user
+
+    def _origin() -> str:
+        configured = os.environ.get("CANONICAL_ORIGIN", "").strip().rstrip("/")
+        return configured or CANONICAL_ORIGIN
+
+    def _ip_hash() -> str:
+        forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        address = forwarded or (request.remote_addr or "")
+        return hashlib.sha256(f"{address}|{app.secret_key}".encode()).hexdigest()[:32]
+
+    def _auth_is_limited(email: str) -> bool:
+        if email and store.login_is_limited(email):
+            return True
+        return store.login_is_limited(f"ip:{_ip_hash()}")
+
+    def _note_auth_failure(email: str) -> None:
+        if email:
+            store.record_login_failure(email)
+        store.record_login_failure(f"ip:{_ip_hash()}")
+
     def _start_session(user_id: str) -> None:
         session.clear()
         session.permanent = True
@@ -644,13 +889,46 @@ def _clean_email(value: object) -> str | None:
     return email
 
 
+COMMON_PASSWORDS = {
+    "1234567890",
+    "12345678901",
+    "abcdefghij",
+    "admin12345",
+    "baseball123",
+    "changeme123",
+    "football123",
+    "iloveyou123",
+    "letmein123",
+    "password1!",
+    "password123",
+    "passw0rd12",
+    "qwerty1234",
+    "qwertyuiop",
+    "trustno1!!",
+    "welcome123",
+}
+
+
 def _password_error(password: object, email: str) -> str | None:
     if not isinstance(password, str) or len(password) < 10:
         return "Use at least 10 characters."
     if len(password) > 128:
         return "Use a password of 128 characters or fewer."
-    if password.lower() == email:
+    lowered = password.lower()
+    local = email.split("@", 1)[0]
+    if lowered == email or lowered == local:
         return "Use a password that is not your email."
+    if lowered in COMMON_PASSWORDS:
+        return "That password is too common. Choose another."
+    kinds = sum(
+        [
+            any(character.isalpha() for character in password),
+            any(character.isdigit() for character in password),
+            any(not character.isalnum() for character in password),
+        ]
+    )
+    if kinds < 2:
+        return "Use letters and a number or symbol."
     return None
 
 
