@@ -44,6 +44,8 @@
     const page = currentPage();
     const changed = shownPage !== null && shownPage !== page;
     shownPage = page;
+    document.body.classList.toggle("is-admin-route", page === "admin");
+    placeGate(page);
     document.querySelectorAll("[data-public-page]").forEach((section) => {
       const match = section.getAttribute("data-public-page") === page;
       section.hidden = !match;
@@ -69,19 +71,27 @@
       terms: "Terms of Service · Wallet Worth",
       privacy: "Privacy Policy · Wallet Worth",
       contact: "Contact · Wallet Worth",
+      admin: "Accounts · Wallet Worth",
     }[page];
     if (document.body.classList.contains("is-signed-out") && title) {
       document.title = title;
     }
     const canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) {
+    if (canonical && page !== "admin") {
       const path = page === "home" ? "/" : `/${page}`;
       canonical.setAttribute("href", `https://subscription-manager-mu-one.vercel.app${path}`);
     }
   }
 
+  function placeGate(page) {
+    const form = document.getElementById("gate");
+    const target = document.getElementById(page === "admin" ? "admin-gate" : "gate-mount");
+    if (form && target && form.parentElement !== target) target.appendChild(form);
+  }
+
   function currentPage() {
     const path = window.location.pathname.replace(/\/$/, "") || "/";
+    if (path === "/admin/analytics") return "admin";
     if (PAGES[path]) return PAGES[path];
     const hash = window.location.hash.replace("#", "");
     if (PAGES[`/${hash}`]) return PAGES[`/${hash}`];

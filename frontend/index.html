@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="css/styles.css?v=13">
+  <link rel="stylesheet" href="/css/styles.css?v=14">
 </head>
 <body class="is-signed-out">
   <a class="skip" href="#view">Skip to content</a>
@@ -36,6 +36,16 @@
       </div>
     </header>
     <main id="public-main" class="site-wrap">
+      <section data-public-page="admin" hidden>
+        <div class="admin-entry">
+          <div>
+            <p class="site-kicker">Private</p>
+            <h1>Accounts</h1>
+            <p class="intro">Sign in with the owner account to see who registered, which reviews are waiting, and messages from the contact form.</p>
+          </div>
+          <div id="admin-gate"></div>
+        </div>
+      </section>
       <section data-public-page="home">
         <div class="site-hero">
           <div class="hero-copy">
@@ -504,7 +514,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="js/public.js?v=4"></script>
-  <script src="js/app.js?v=11"></script>
+  <script src="/js/public.js?v=5"></script>
+  <script src="/js/app.js?v=12"></script>
 </body>
 </html>

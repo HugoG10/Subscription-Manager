@@ -1803,8 +1803,8 @@ body:not(.is-signed-out) #site {
 }
 
 .goal-track {
-  height: 12px;
-  margin: 8px 0;
+  height: 10px;
+  margin: 14px 0 4px;
   border-radius: 999px;
   background: #ececec;
   overflow: hidden;
@@ -1813,15 +1813,48 @@ body:not(.is-signed-out) #site {
 .goal-track span {
   display: block;
   height: 100%;
+  border-radius: inherit;
   background: var(--ink);
+}
+
+.admin-goal-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.admin-goal-count strong {
+  font-size: 2.4rem;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.admin-goal-count span,
+.admin-rows b {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.admin-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 12px;
+}
+
+.admin-subhead {
+  margin-top: 18px;
 }
 
 .mini-chart {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 90px;
-  margin-top: 12px;
+  gap: 4px;
+  height: 96px;
+  margin-top: 18px;
+  padding: 8px 2px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .bar-col {
@@ -1834,24 +1867,178 @@ body:not(.is-signed-out) #site {
 .bar-col span {
   display: block;
   width: 100%;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
+  min-height: 3px;
+  border-radius: 5px 5px 0 0;
   background: var(--ink);
 }
 
+.admin-rows,
 .plain-list {
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
-.admin-account {
+.admin-rows li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.admin-search {
+  display: grid;
+  gap: 6px;
+  max-width: 320px;
+  margin-top: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.admin-search input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  font: inherit;
+  font-weight: 400;
+}
+
+.admin-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.admin-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.admin-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  vertical-align: middle;
+}
+
+.admin-table strong,
+.admin-table small {
+  display: block;
+}
+
+.admin-table small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.admin-pill {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f3f1;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.admin-pill.is-on {
+  background: #e7f6ec;
+  color: #0d5c32;
+}
+
+.admin-action {
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-action.is-danger {
+  color: var(--danger);
+}
+
+.admin-cards {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-card {
+  padding: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  background: var(--bg);
+}
+
+.admin-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.admin-card p {
+  margin: 8px 0 0;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+  gap: 28px;
   align-items: center;
+  min-height: calc(100vh - 140px);
+  padding: 28px 0 48px;
+}
+
+.admin-entry h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  letter-spacing: -0.045em;
+}
+
+#admin-gate,
+#admin-gate .gate {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#admin-gate .gate {
+  display: block;
+  min-height: 0;
+  padding: 0;
+}
+
+#admin-gate .gate-card {
+  width: 100%;
+  margin: 0;
+}
+
+body.is-admin-route.is-signed-out .site-links,
+body.is-admin-route.is-signed-out .site-footer {
+  display: none;
 }
 
 .check-line {
@@ -2134,7 +2321,8 @@ body:not(.is-signed-out) #site {
   .demo-shell,
   .signin-block,
   .demo-add,
-  .admin-account {
+  .admin-entry,
+  .admin-split {
     grid-template-columns: 1fr;
   }
 

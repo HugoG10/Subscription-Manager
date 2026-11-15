@@ -135,6 +135,7 @@ const state = {
   activityFrom: "",
   activityTo: "",
   growth: null,
+  adminQuery: "",
   ownReview: null,
 };
 
@@ -937,86 +938,146 @@ function renderAccount() {
   `;
 }
 
+function formatDay(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function adminAccounts() {
+  const accounts = (state.growth && state.growth.accounts) || [];
+  const query = state.adminQuery.trim().toLowerCase();
+  if (!query) return accounts;
+  return accounts.filter((account) => `${account.email} ${account.source}`.toLowerCase().includes(query));
+}
+
+function adminAccountRows() {
+  const rows = adminAccounts();
+  if (!rows.length) {
+    return `<tr><td colspan="4">${state.adminQuery ? "No account matches that search." : "No accounts yet."}</td></tr>`;
+  }
+  return rows.map((account) => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(account.email)}</strong>
+        <small>${escapeHtml(account.source)}</small>
+      </td>
+      <td>${escapeHtml(formatDay(account.createdAt))}</td>
+      <td><span class="admin-pill ${account.eligible ? "is-on" : ""}">${account.eligible ? "Eligible" : "Excluded"}</span></td>
+      <td>
+        <button class="admin-action" type="button" data-action="set-exclusion" data-id="${escapeHtml(account.id)}" data-excluded="${account.manualExclusion ? "false" : "true"}">${account.manualExclusion ? "Include" : "Exclude"}</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
 function renderAdmin() {
   if (!state.user || !state.user.admin) {
-    return emptyBlock("Admins only", "Growth counts are not available on this login.");
+    return emptyBlock("Owner account required", "Sign in with the owner email to see registrations, reviews, and messages.");
   }
   if (!state.growth) {
     if (!growthRequest) growthRequest = loadGrowth().finally(() => { growthRequest = null; });
-    return `<p class="fine">Loading registration counts…</p>`;
+    return `<p class="fine">Loading accounts…</p>`;
   }
   const report = state.growth;
-  const reached = report.milestones.filter((item) => item.reached);
   const bars = report.daily.slice(-30);
   const max = Math.max(...bars.map((item) => item.count), 1);
   const chart = bars.map((item) => {
-    const height = Math.round((item.count / max) * 80);
+    const height = Math.round((item.count / max) * 72);
     return `<div class="bar-col" title="${escapeHtml(item.date)}: ${item.count}"><span style="height:${height}px"></span></div>`;
   }).join("");
   const sources = report.sources.length
-    ? report.sources.map((row) => `<li><span>${escapeHtml(row.source)}</span><b>${row.eligible} eligible / ${row.registrations} accounts</b></li>`).join("")
-    : "<li>No accounts yet.</li>";
+    ? report.sources.map((row) => `<li><span>${escapeHtml(row.source)}</span><b>${row.eligible}</b></li>`).join("")
+    : "<li><span>No accounts yet</span><b>0</b></li>";
   const milestones = report.milestones.map((item) => {
-    const when = item.reached ? (item.reachedAt ? item.reachedAt.slice(0, 10) : "date not recorded") : "not reached";
-    return `<li>${item.goal}: ${escapeHtml(when)}</li>`;
+    const when = item.reached ? formatDay(item.reachedAt) : "Not reached";
+    return `<li><span>${item.goal} accounts</span><b>${escapeHtml(when)}</b></li>`;
   }).join("");
-  const accounts = (report.accounts || []).slice(0, 30).map((account) => `
-    <li class="admin-account">
-      <span>${escapeHtml(account.email)} · ${escapeHtml(account.source)} · ${account.eligible ? "eligible" : "excluded"}</span>
-      <button type="button" data-action="set-exclusion" data-id="${escapeHtml(account.id)}" data-excluded="${account.manualExclusion ? "false" : "true"}">${account.manualExclusion ? "Include" : "Exclude"}</button>
-    </li>`).join("");
   const reviews = (state.adminReviews || []).map((review) => `
-    <li class="admin-account">
-      <span>${escapeHtml(review.displayName)} · ${review.rating}/5 · ${escapeHtml(review.status)} · ${escapeHtml(review.body)}</span>
-      <span>
-        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="approved">Approve</button>
-        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="rejected">Reject</button>
-        <button type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="delete">Remove</button>
-      </span>
-    </li>`).join("");
+    <article class="admin-card">
+      <div class="panel-head">
+        <h3>${escapeHtml(review.displayName)}</h3>
+        <span>${review.rating}/5 · ${escapeHtml(review.status)}</span>
+      </div>
+      <p>${escapeHtml(review.body)}</p>
+      <div class="admin-actions">
+        <button class="admin-action" type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="approved">Approve</button>
+        <button class="admin-action" type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="rejected">Reject</button>
+        <button class="admin-action is-danger" type="button" data-action="moderate-review" data-id="${escapeHtml(review.id)}" data-status="delete">Remove</button>
+      </div>
+    </article>
+  `).join("");
   const messages = (state.adminMessages || []).map((message) => `
-    <li><strong>${escapeHtml(message.topic)}</strong> · ${escapeHtml(message.name)} · ${escapeHtml(message.email)}<br>${escapeHtml(message.body)}</li>
+    <article class="admin-card">
+      <div class="panel-head">
+        <h3>${escapeHtml(message.topic)}</h3>
+        <span>${escapeHtml(formatDay(message.createdAt))}</span>
+      </div>
+      <p class="fine">${escapeHtml(message.name)} · ${escapeHtml(message.email)}</p>
+      <p>${escapeHtml(message.body)}</p>
+    </article>
   `).join("");
   const celebration = report.eligible >= report.goal
-    ? `<p class="banner">The 200 eligible-account goal is met${report.goalReachedAt ? ` as of ${escapeHtml(report.goalReachedAt.slice(0, 10))}` : ""}.</p>`
+    ? `<p class="banner">The 200 eligible-account goal is met${report.goalReachedAt ? ` as of ${escapeHtml(formatDay(report.goalReachedAt))}` : ""}.</p>`
     : "";
+  const firstDay = bars[0] ? formatDay(bars[0].date) : "";
+  const lastDay = bars.length ? formatDay(bars[bars.length - 1].date) : "";
   return `
     ${celebration}
+    <section class="panel admin-goal">
+      <div class="panel-head">
+        <h2>Eligible accounts</h2>
+        <span>${report.percent}%</span>
+      </div>
+      <p class="admin-goal-count"><strong>${report.eligible}</strong><span>of ${report.goal}</span></p>
+      <div class="goal-track" role="img" aria-label="${report.eligible} of ${report.goal} eligible accounts"><span style="width:${Math.min(report.percent, 100)}%"></span></div>
+      <p class="fine">${report.remaining} still to go. ${escapeHtml(report.methodology)}</p>
+    </section>
     <section class="stats">
-      <article class="stat"><span>Eligible toward goal</span><strong>${report.eligible} / ${report.goal}</strong><em>${report.percent}% · ${report.remaining} remaining</em></article>
       <article class="stat"><span>All accounts</span><strong>${report.total}</strong><em>${report.excluded} excluded</em></article>
-      <article class="stat"><span>Verified email</span><strong>${report.verified}</strong><em>Verification email is not offered</em></article>
+      <article class="stat"><span>New today</span><strong>${report.today}</strong><em>${report.week} in 7 days</em></article>
+      <article class="stat"><span>This month</span><strong>${report.month}</strong><em>Eligible registrations</em></article>
       <article class="stat"><span>Active in 30 days</span><strong>${report.active30}</strong><em>Opened a session</em></article>
     </section>
-    <div class="goal-track" aria-hidden="true"><span style="width:${Math.min(report.percent, 100)}%"></span></div>
-    <p class="fine">${escapeHtml(report.methodology)}</p>
+    <div class="admin-split">
+      <section class="panel">
+        <div class="panel-head"><h2>Last 30 days</h2><span>${firstDay}${lastDay && lastDay !== firstDay ? ` – ${lastDay}` : ""}</span></div>
+        <div class="mini-chart">${chart}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Sources</h2><span>Eligible</span></div>
+        <ul class="admin-rows">${sources}</ul>
+        <h2 class="admin-subhead">Milestones</h2>
+        <ul class="admin-rows">${milestones}</ul>
+      </section>
+    </div>
     <section class="panel">
-      <h2>New eligible registrations</h2>
-      <p class="fine">Today ${report.today} · last 7 days ${report.week} · this month ${report.month}. Visitor counts are not collected, so there is no conversion rate.</p>
-      <div class="mini-chart">${chart}</div>
+      <div class="panel-head">
+        <h2>Accounts</h2>
+        <a class="btn btn-ghost" href="/api/admin/export.csv">Download CSV</a>
+      </div>
+      <label class="admin-search">Search
+        <input id="admin-search" type="search" value="${escapeHtml(state.adminQuery)}" placeholder="Email or source" autocomplete="off">
+      </label>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Account</th><th>Registered</th><th>Status</th><th></th></tr></thead>
+          <tbody id="admin-accounts">${adminAccountRows()}</tbody>
+        </table>
+      </div>
+      <p class="fine" id="admin-count">${adminAccounts().length} shown of ${report.accounts.length}. The CSV leaves out email addresses.</p>
     </section>
-    <section class="panel">
-      <h2>Sources</h2>
-      <ul class="plain-list">${sources}</ul>
-      <p class="fine">Campaigns: ${report.campaigns.length ? report.campaigns.map((item) => `${escapeHtml(item.campaign)} (${item.eligible})`).join(", ") : "none recorded"}.</p>
-    </section>
-    <section class="panel">
-      <h2>Milestones</h2>
-      <ul class="plain-list">${milestones}</ul>
-      <p class="fine">${reached.length ? "" : "No milestone date is invented."} Accounts without a registration time are counted, but they do not invent a calendar day.</p>
-    </section>
-    <section class="panel">
-      <div class="panel-head"><h2>Accounts</h2><a href="/api/admin/export.csv">Download anonymous CSV</a></div>
-      <ul class="plain-list">${accounts || "<li>No accounts.</li>"}</ul>
-    </section>
-    <section class="panel">
-      <h2>Reviews</h2>
-      <ul class="plain-list">${reviews || "<li>No reviews submitted.</li>"}</ul>
-    </section>
-    <section class="panel">
-      <h2>Messages</h2>
-      <ul class="plain-list">${messages || "<li>No messages saved.</li>"}</ul>
-    </section>
+    <div class="admin-split">
+      <section class="panel">
+        <h2>Reviews</h2>
+        <div class="admin-cards">${reviews || `<p class="fine">No reviews submitted.</p>`}</div>
+      </section>
+      <section class="panel">
+        <h2>Messages</h2>
+        <div class="admin-cards">${messages || `<p class="fine">No messages saved.</p>`}</div>
+      </section>
+    </div>
   `;
 }
 
@@ -1078,6 +1139,8 @@ function render(options = {}) {
   document.getElementById("page-kicker").textContent = page.kicker;
   document.getElementById("page-title").textContent = page.title;
   document.getElementById("page-intro").textContent = page.intro;
+  const addActions = document.querySelector(".top-actions");
+  if (addActions) addActions.hidden = state.view === "admin";
   if (state.loadError) {
     document.getElementById("view").innerHTML = emptyBlock("The server is not running", state.loadError);
     document.title = "Wallet Worth";
@@ -1371,9 +1434,10 @@ function downloadJson() {
 }
 
 function viewFromHash() {
-  if (window.location.pathname === "/admin/analytics" && state.user && state.user.admin) return "admin";
   const name = location.hash.replace(/^#/, "");
-  return VIEWS.includes(name) ? name : "overview";
+  if (VIEWS.includes(name)) return name;
+  if (window.location.pathname === "/admin/analytics") return "admin";
+  return "overview";
 }
 
 function navigate(view) {
@@ -1414,6 +1478,16 @@ function onInput(event) {
   if (event.target.id === "search") {
     state.query = event.target.value;
     refreshSubList();
+    return;
+  }
+  if (event.target.id === "admin-search") {
+    state.adminQuery = event.target.value;
+    const host = document.getElementById("admin-accounts");
+    if (host) host.innerHTML = adminAccountRows();
+    const count = document.getElementById("admin-count");
+    if (count && state.growth) {
+      count.textContent = `${adminAccounts().length} shown of ${state.growth.accounts.length}. The CSV leaves out email addresses.`;
+    }
     return;
   }
   if (event.target.id === "activity-search" || event.target.id === "activity-from" || event.target.id === "activity-to") {
