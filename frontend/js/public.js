@@ -38,12 +38,43 @@
   loadMilestone();
   const contact = document.getElementById("contact-form");
   if (contact) contact.addEventListener("submit", sendContact);
+  const siteMenu = document.getElementById("site-menu");
+  const siteBar = document.querySelector(".site-bar");
+  if (siteMenu && siteBar) {
+    siteMenu.addEventListener("click", () => {
+      setSiteMenu(!siteBar.classList.contains("is-open"));
+    });
+    siteBar.addEventListener("click", (event) => {
+      if (event.target.closest("a")) setSiteMenu(false);
+      else if (event.target === siteBar) setSiteMenu(false);
+    });
+    document.addEventListener("click", (event) => {
+      if (!siteBar.classList.contains("is-open")) return;
+      if (event.target.id === "nav-scrim") setSiteMenu(false);
+      else if (!siteBar.contains(event.target)) setSiteMenu(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setSiteMenu(false);
+    });
+  }
   window.addEventListener("hashchange", showPublicPage);
+
+  function setSiteMenu(open) {
+    const bar = document.querySelector(".site-bar");
+    const button = document.getElementById("site-menu");
+    if (!bar || !button) return;
+    bar.classList.toggle("is-open", open);
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+    if (!document.querySelector(".rail.is-open")) {
+      document.body.classList.toggle("has-menu", open);
+    }
+  }
 
   function showPublicPage() {
     const page = currentPage();
     const changed = shownPage !== null && shownPage !== page;
     shownPage = page;
+    setSiteMenu(false);
     document.body.classList.toggle("is-admin-route", page === "admin");
     placeGate(page);
     document.querySelectorAll("[data-public-page]").forEach((section) => {

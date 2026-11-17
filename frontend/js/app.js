@@ -1440,7 +1440,17 @@ function viewFromHash() {
   return "overview";
 }
 
+function setRailMenu(open) {
+  const rail = document.querySelector(".rail");
+  const button = document.getElementById("rail-menu");
+  if (!rail || !button) return;
+  rail.classList.toggle("is-open", open);
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+  document.body.classList.toggle("has-menu", open);
+}
+
 function navigate(view) {
+  setRailMenu(false);
   if (!VIEWS.includes(view)) return;
   if (location.hash === `#${view}`) return;
   location.hash = view;
@@ -1450,7 +1460,10 @@ function onClick(event) {
   const target = event.target.closest("[data-action]");
   if (!target) return;
   const { action, id, view, usage } = target.dataset;
-  if (action === "navigate") navigate(view);
+  if (action === "toggle-rail") {
+    const rail = document.querySelector(".rail");
+    setRailMenu(!(rail && rail.classList.contains("is-open")));
+  } else if (action === "navigate") navigate(view);
   else if (action === "add") openEditor(null);
   else if (action === "edit") openEditor(id);
   else if (action === "ask-delete") askDelete(id);
@@ -1469,7 +1482,10 @@ function onClick(event) {
   else if (action === "sync-bank") syncBank();
   else if (action === "keep-merchant") decideMerchant(target.dataset.key, "keep");
   else if (action === "dismiss-merchant") decideMerchant(target.dataset.key, "dismiss");
-  else if (action === "logout") logout();
+  else if (action === "logout") {
+    setRailMenu(false);
+    logout();
+  }
   else if (action === "set-exclusion") setExclusion(target.dataset.id, target.dataset.excluded === "true");
   else if (action === "moderate-review") moderateReview(target.dataset.id, target.dataset.status);
 }
@@ -1555,6 +1571,19 @@ function bind() {
     if (document.body.classList.contains("is-signed-out")) return;
     state.view = viewFromHash();
     render();
+  });
+  document.addEventListener("click", (event) => {
+    const rail = document.querySelector(".rail");
+    if (!rail || !rail.classList.contains("is-open")) return;
+    if (event.target.id === "nav-scrim") {
+      setRailMenu(false);
+      return;
+    }
+    if (rail.contains(event.target)) return;
+    setRailMenu(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setRailMenu(false);
   });
   fillSelect("category", CATEGORIES);
   fillSelect("cycle", CYCLES);

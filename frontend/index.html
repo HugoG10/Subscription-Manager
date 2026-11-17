@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/css/styles.css?v=14">
+  <link rel="stylesheet" href="/css/styles.css?v=17">
 </head>
 <body class="is-signed-out">
   <a class="skip" href="#view">Skip to content</a>
@@ -25,7 +25,11 @@
           <span class="mark" aria-hidden="true">W</span>
           <span class="brand-name">Wallet Worth</span>
         </a>
-        <nav class="site-links" aria-label="Site">
+        <button class="menu-toggle" id="site-menu" type="button" aria-expanded="false" aria-controls="site-links">
+          <span class="menu-toggle-bars" aria-hidden="true"></span>
+          <span class="sr-only">Menu</span>
+        </button>
+        <nav class="site-links" id="site-links" aria-label="Site">
           <a href="/#demo">Demo</a>
           <a href="/features">Features</a>
           <a href="/about">About</a>
@@ -396,7 +400,12 @@
       <div class="brand">
         <span class="mark" aria-hidden="true">W</span>
         <p class="brand-name">Wallet Worth</p>
+        <button class="menu-toggle" id="rail-menu" type="button" data-action="toggle-rail" aria-expanded="false" aria-controls="rail-panel">
+          <span class="menu-toggle-bars" aria-hidden="true"></span>
+          <span class="sr-only">Menu</span>
+        </button>
       </div>
+      <div class="rail-panel" id="rail-panel">
       <nav class="nav" aria-label="Sections">
         <p class="nav-label">Home</p>
         <button class="nav-btn" type="button" data-action="navigate" data-view="overview">Overview</button>
@@ -419,6 +428,7 @@
         <button type="button" data-action="sync-bank" id="sync-bank" hidden>Sync bank</button>
         <button type="button" data-action="navigate" data-view="account">Account</button>
         <button type="button" data-action="logout">Log out</button>
+      </div>
       </div>
     </aside>
 
@@ -514,7 +524,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="/js/public.js?v=5"></script>
-  <script src="/js/app.js?v=12"></script>
+  <button class="nav-scrim" id="nav-scrim" type="button" tabindex="-1" aria-label="Close menu"></button>
+  <script src="/js/public.js?v=8"></script>
+  <script src="/js/app.js?v=15"></script>
 </body>
 </html>
